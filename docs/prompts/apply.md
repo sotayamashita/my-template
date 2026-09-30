@@ -13,6 +13,9 @@ Align this repository with https://github.com/sotayamashita/my-template.
    - Keep this repository's own rules, scripts, and dependencies.
    - Keep newer tool and package versions over the template's pins.
    - Ask before replacing a tool the template lacks, such as ESLint.
+   - Ask whether to adopt `tools/jev-lint`.
+     - Tell the user it sends code to the TypeSafe API and needs a key.
+     - If declined, drop it with its recipe, script, deps, and `fnox.toml` key.
 4. Apply only the approved changes.
 5. Verify:
    - `just setup`
