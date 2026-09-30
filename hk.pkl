@@ -19,6 +19,20 @@ local linters = new Mapping {
         // `-I` alone already passes one file per line.
         check = "xargs -I {} -- just --fmt --check --unstable --justfile {}"
         fix = "xargs -I {} -- just --fmt --unstable --justfile {}"
+        tests {
+            ["check rejects unformatted justfile"] {
+                run = "check"
+                files = List("{{tmp}}/justfile")
+                write { ["{{tmp}}/justfile"] = "tmp:\n        echo tmp\n" }
+                expect { code = 1 }
+            }
+            ["fix formats justfile"] {
+                run = "fix"
+                files = List("{{tmp}}/justfile")
+                write { ["{{tmp}}/justfile"] = "tmp:\n        echo tmp\n" }
+                expect { files { ["{{tmp}}/justfile"] = "tmp:\n    echo tmp\n" } }
+            }
+        }
     }
     ["jscpd"] = new Step {
         glob = List("**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}")
