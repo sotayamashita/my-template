@@ -7,6 +7,9 @@ export default defineConfig({
   ignorePatterns: [...(core.ignorePatterns ?? []), ".agents/**", ".claude/**"],
   jsPlugins: ["oxlint-plugin-complexity"],
   rules: {
-    "complexity/complexity": ["error", { cognitive: 15 }],
+    // Ultracite core enables oxlint's complexity rule; oxlint-plugin-complexity
+    // also reports cyclomatic complexity, with a breakdown agents can act on.
+    complexity: "off",
+    "complexity/complexity": "error",
   },
 });
