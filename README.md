@@ -24,6 +24,23 @@ just fix        # Fix lint violations and formatting
 just typecheck  # Check TypeScript types
 ```
 
+## Opinionated stack
+
+| Role                    | Tool                             |
+| ----------------------- | -------------------------------- |
+| Tool versions           | mise                             |
+| Tasks                   | just                             |
+| Packages                | pnpm                             |
+| Git hooks               | hk                               |
+| Commit messages         | commitlint                       |
+| Type checking           | TypeScript                       |
+| TypeScript presets      | [tsconfig/bases][tsconfig-bases] |
+| Lint                    | oxlint                           |
+| Format                  | oxfmt                            |
+| Lint and format presets | Ultracite                        |
+
+[tsconfig-bases]: https://github.com/tsconfig/bases
+
 ## Apply to an existing repository
 
 Give a coding agent this prompt in the target repository:
