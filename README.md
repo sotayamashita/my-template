@@ -42,6 +42,7 @@ just typecheck  # Check TypeScript types
 | Lint and format presets | Ultracite                        |
 | Unused code             | knip                             |
 | Duplicate code          | jscpd                            |
+| Semantic lint           | [jev-lint](tools/jev-lint)       |
 
 [tsconfig-bases]: https://github.com/tsconfig/bases
 

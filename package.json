@@ -7,7 +7,8 @@
     "check": "ultracite check",
     "fix": "ultracite fix",
     "typecheck": "tsc --noEmit",
-    "jscpd": "jscpd ."
+    "jscpd": "jscpd .",
+    "jev-lint": "node tools/jev-lint/index.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.3",
@@ -17,8 +18,10 @@
     "@tsconfig/node-ts": "23.6.4",
     "@tsconfig/strictest": "2.0.8",
     "@types/node": "24.13.6",
+    "@typesafe-ai/sdk": "0.6.0",
     "jscpd": "5.3.1",
     "knip": "6.37.0",
+    "oxc-parser": "0.151.0",
     "oxfmt": "0.70.0",
     "oxlint": "1.85.0",
     "oxlint-plugin-complexity": "3.0.0",

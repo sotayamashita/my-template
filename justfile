@@ -28,6 +28,10 @@ knip *args:
 jscpd *args:
     mise exec -- pnpm jscpd "$@"
 
+# Ask Jev about changed code; findings are candidates, not verdicts.
+jev-lint *args:
+    mise exec -- fnox exec -- pnpm jev-lint "$@"
+
 # Check lint rules and formatting.
 check *args:
     mise exec -- pnpm check "$@"
