@@ -1,10 +1,13 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
 import { noul, TypeSafeClient } from "@typesafe-ai/sdk";
 
 import { extractFragments } from "./extract.ts";
+import type { Fragment } from "./extract.ts";
+import type { Rule } from "./rule.ts";
 import { rules } from "./rules/index.ts";
 
 const SOURCE_PATHSPECS = [
@@ -102,8 +105,22 @@ if ((process.env["TYPESAFE_API_KEY"] ?? "") === "") {
   process.exit(0);
 }
 
+const LOG_DIR = new URL("log/", import.meta.url);
+
 const client = new TypeSafeClient();
+const rulesById = new Map(rules.map((rule) => [rule.id, rule]));
 const rulesByTarget = Map.groupBy(rules, (rule) => rule.target);
+
+const hash = (value: Fragment["state"] | Rule) =>
+  createHash("sha256").update(JSON.stringify(value)).digest("hex").slice(0, 12);
+
+const appendLog = (name: string, records: readonly object[]) => {
+  mkdirSync(LOG_DIR, { recursive: true });
+  appendFileSync(
+    new URL(name, LOG_DIR),
+    records.map((record) => `${JSON.stringify(record)}\n`).join("")
+  );
+};
 
 const changedLines = new Map(
   values.staged
@@ -115,29 +132,81 @@ const fragments = [...changedLines].flatMap(([file, lines]) =>
   extractFragments(file, readFileSync(file, "utf-8"), lines)
 );
 
-const findings = await Promise.all(
-  fragments.map(async ({ file, line, state, targets }) => {
+if (fragments.length === 0) {
+  process.exit(0);
+}
+
+const runId = randomUUID();
+
+appendLog("runs.jsonl", [
+  {
+    base: values.base,
+    head: execFileSync("git", ["rev-parse", "HEAD"], {
+      encoding: "utf-8",
+    }).trim(),
+    // Labels join on these, so editing one rule leaves the others' history valid.
+    ruleHashes: Object.fromEntries(rules.map((rule) => [rule.id, hash(rule)])),
+    runId,
+    staged: values.staged,
+    thresholds: { accept: ACCEPT, escalate: ESCALATE },
+    time: new Date().toISOString(),
+  },
+]);
+
+const records = await Promise.all(
+  fragments.map(async ({ line, state, targets }) => {
     const fragmentRules = targets.flatMap(
       (target) => rulesByTarget.get(target) ?? []
     );
-    const { answers } = await client.systemOne({
-      questions: Object.fromEntries(
-        fragmentRules.map((rule) => [
-          rule.id,
-          noul(rule.instructions, rule.criteria),
-        ])
-      ),
-      state,
-    });
+    const startedAt = performance.now();
+    const { data, requestId } = await client
+      .systemOne({
+        questions: Object.fromEntries(
+          fragmentRules.map((rule) => [
+            rule.id,
+            noul(rule.instructions, rule.criteria),
+          ])
+        ),
+        state,
+      })
+      .withResponse();
 
-    return fragmentRules.flatMap((rule) => {
-      const probability = answers[rule.id]?.noul ?? 0;
-      return probability >= ESCALATE
-        ? [{ file, line, probability, rule, unsure: probability < ACCEPT }]
-        : [];
-    });
+    return {
+      // The same code keeps its key across runs, so one label covers them all.
+      fragmentKey: hash(state),
+      latencyMs: Math.round(performance.now() - startedAt),
+      line,
+      model: data.model,
+      probabilities: Object.fromEntries(
+        fragmentRules.map((rule) => [rule.id, data.answers[rule.id]?.noul ?? 0])
+      ),
+      requestId,
+      runId,
+      state,
+      targets,
+      usage: data.usage,
+    };
   })
-).then((results) => results.flat());
+);
+
+appendLog("requests.jsonl", records);
+
+const findings = records.flatMap(({ line, probabilities, state }) =>
+  Object.entries(probabilities).flatMap(([id, probability]) => {
+    const rule = rulesById.get(id);
+    return rule && probability >= ESCALATE
+      ? [
+          {
+            file: state.file,
+            line,
+            probability,
+            rule,
+            unsure: probability < ACCEPT,
+          },
+        ]
+      : [];
+  })
+);
 
 process.stdout.write(
   findings

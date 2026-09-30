@@ -23,6 +23,10 @@ node tools/jev-lint/index.ts --staged       # Staged changes, for a pre-commit h
 - Marks a finding from 0.5 to 0.9 `unsure` and prints its question
   - The agent reading the output answers the question itself
 - Always exits 0, because a finding is a candidate for review
+- Logs to `log/`, which git ignores
+  - `runs.jsonl`: one line per run, with the commit, thresholds, and rule hashes
+  - `requests.jsonl`: one line per request, with the fragment, every rule's probability, tokens, and latency
+  - `fragmentKey` stays the same while the code does, so a label can cover every run
 
 ## Integrations
 
