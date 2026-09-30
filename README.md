@@ -12,7 +12,8 @@ just setup
 ## Commands
 
 ```sh
-just        # List commands
-just check  # Check lint rules and formatting
-just fix    # Fix lint violations and formatting
+just            # List commands
+just check      # Check lint rules and formatting
+just fix        # Fix lint violations and formatting
+just typecheck  # Check TypeScript types
 ```
