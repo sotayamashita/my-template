@@ -1,0 +1,29 @@
+amends "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Builtins.pkl"
+// Using a coding agent? See https://hk.jdx.dev/agents
+
+exclude = List("pnpm-lock.yaml")
+
+local linters = new Mapping {
+    ["ox_lint"] = (Builtins.ox_lint) {
+        prefix = List("pnpm", "exec")
+    }
+    ["oxfmt"] = (Builtins.oxfmt) {
+        prefix = List("pnpm", "exec")
+    }
+    ["tsc"] = (Builtins.tsc) {
+        check = "pnpm exec tsc --noEmit -p {{workspace_indicator}}"
+    }
+}
+
+steps = linters
+
+hooks {
+    ["commit-msg"] {
+        steps {
+            ["commitlint"] {
+                check = "pnpm exec commitlint --edit {{commit_msg_file}}"
+            }
+        }
+    }
+}
