@@ -33,6 +33,7 @@ just typecheck  # Check TypeScript types
 | Packages                | pnpm                             |
 | Git hooks               | hk                               |
 | Commit messages         | commitlint                       |
+| Secret scanning         | gitleaks                         |
 | Type checking           | TypeScript                       |
 | TypeScript presets      | [tsconfig/bases][tsconfig-bases] |
 | Lint                    | oxlint                           |

@@ -19,6 +19,14 @@ local linters = new Mapping {
 steps = linters
 
 hooks {
+    ["pre-commit"] {
+        steps = (linters) {
+            // Scans only what is being committed, unlike the default whole-tree scan.
+            ["gitleaks"] = (Builtins.gitleaks) {
+                scan = "staged"
+            }
+        }
+    }
     ["commit-msg"] {
         steps {
             ["commitlint"] {
