@@ -27,3 +27,7 @@ check *args:
 # Fix lint violations and formatting.
 fix *args:
     mise exec -- pnpm fix "$@"
+
+# Check TypeScript types.
+typecheck *args:
+    mise exec -- pnpm typecheck "$@"
