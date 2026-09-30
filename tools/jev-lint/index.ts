@@ -18,8 +18,14 @@ const SOURCE_PATHSPECS = [
   "*.tsx",
 ];
 
-// Violating samples scored 0.72 or more; most false positives stayed below 0.7.
-const THRESHOLD = 0.7;
+// Jev judges as well as a reasoning model at 0.9 or more, so accept those.
+// Below that, most of its errors fall in; the reading agent decides instead.
+// See https://arxiv.org/abs/2609.26550
+const ACCEPT = 0.9;
+const ESCALATE = 0.5;
+
+const UNSURE_NOTE =
+  "\nJev was unsure about the findings marked unsure. Read the code at each one and answer its question yourself before changing anything.\n";
 
 const HUNK_HEADER = /^@@ -\S+ \+(?<start>\d+)(?:,(?<count>\d+))? @@/u;
 
@@ -120,8 +126,8 @@ const findings = await Promise.all(
 
     return fragmentRules.flatMap((rule) => {
       const probability = answers[rule.id]?.noul ?? 0;
-      return probability >= THRESHOLD
-        ? [{ file, line, probability, rule }]
+      return probability >= ESCALATE
+        ? [{ file, line, probability, rule, unsure: probability < ACCEPT }]
         : [];
     });
   })
@@ -129,9 +135,12 @@ const findings = await Promise.all(
 
 process.stdout.write(
   findings
-    .map(
-      ({ file, line, probability, rule }) =>
-        `${file}:${line} ${rule.id} ${probability.toFixed(2)}\n`
-    )
+    .map(({ file, line, probability, rule, unsure }) => {
+      const head = `${file}:${line} ${rule.id} ${probability.toFixed(2)}`;
+      return unsure ? `${head} unsure\n  ${rule.instructions}\n` : `${head}\n`;
+    })
     .join("")
 );
+if (findings.some(({ unsure }) => unsure)) {
+  process.stdout.write(UNSURE_NOTE);
+}

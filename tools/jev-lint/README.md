@@ -17,6 +17,8 @@ just jev-lint --base HEAD~3  # Changes since another ref
 - Reads `TYPESAFE_API_KEY` from 1Password through fnox, as set in `fnox.toml`
 - Sends changed comments, functions, types, and tests to the TypeSafe API
 - Prints each finding as `file:line rule probability`
+- Accepts findings at 0.9 or more, where Jev matches a reasoning model
+- Marks findings from 0.5 to 0.9 `unsure` with the question for the agent
 - Exits 0: findings are candidates, not verdicts
 
 ## Rules
