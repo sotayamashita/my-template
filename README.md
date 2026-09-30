@@ -40,6 +40,7 @@ just typecheck  # Check TypeScript types
 | Format                  | oxfmt                            |
 | Lint and format presets | Ultracite                        |
 | Unused code             | knip                             |
+| Duplicate code          | jscpd                            |
 
 [tsconfig-bases]: https://github.com/tsconfig/bases
 

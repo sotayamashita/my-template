@@ -24,6 +24,10 @@ install-deps:
 knip *args:
     mise exec -- pnpm knip "$@"
 
+# Find duplicated code.
+jscpd *args:
+    mise exec -- pnpm jscpd "$@"
+
 # Check lint rules and formatting.
 check *args:
     mise exec -- pnpm check "$@"

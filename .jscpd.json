@@ -1,0 +1,5 @@
+{
+  "exitCode": 1,
+  "reporters": ["ai"],
+  "ignore": [".agents/**", ".claude/**", "pnpm-lock.yaml"]
+}

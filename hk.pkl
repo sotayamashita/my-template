@@ -20,6 +20,11 @@ local linters = new Mapping {
         check = "xargs -I {} -- just --fmt --check --unstable --justfile {}"
         fix = "xargs -I {} -- just --fmt --unstable --justfile {}"
     }
+    ["jscpd"] = new Step {
+        glob = List("**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}")
+        // A clone spans files, so scan the whole project, not just changed files.
+        check = "pnpm exec jscpd ."
+    }
     ["knip"] = (Builtins.knip) {
         check = "pnpm exec knip --no-progress --directory {{workspace}}"
         // The builtin fix deletes unused exports and dependencies on commit,
