@@ -14,6 +14,12 @@ local linters = new Mapping {
     ["tsc"] = (Builtins.tsc) {
         check = "pnpm exec tsc --noEmit -p {{workspace_indicator}}"
     }
+    ["knip"] = (Builtins.knip) {
+        check = "pnpm exec knip --no-progress --directory {{workspace}}"
+        // The builtin fix deletes unused exports and dependencies on commit,
+        // which breaks work in progress. Report them for review instead.
+        fix = null
+    }
 }
 
 steps = linters

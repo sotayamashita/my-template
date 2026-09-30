@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "knip": "knip",
     "check": "ultracite check",
     "fix": "ultracite fix",
     "typecheck": "tsc --noEmit"
@@ -15,6 +16,7 @@
     "@tsconfig/node-ts": "23.6.4",
     "@tsconfig/strictest": "2.0.8",
     "@types/node": "24.13.6",
+    "knip": "6.37.0",
     "oxfmt": "0.70.0",
     "oxlint": "1.85.0",
     "oxlint-plugin-complexity": "3.0.0",

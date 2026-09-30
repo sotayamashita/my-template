@@ -20,6 +20,10 @@ install-deps:
     # See https://pnpm.io/cli/install#--frozen-lockfile
     mise exec -- pnpm install
 
+# Find unused files, exports, and dependencies.
+knip *args:
+    mise exec -- pnpm knip "$@"
+
 # Check lint rules and formatting.
 check *args:
     mise exec -- pnpm check "$@"

@@ -39,6 +39,7 @@ just typecheck  # Check TypeScript types
 | Lint                    | oxlint                           |
 | Format                  | oxfmt                            |
 | Lint and format presets | Ultracite                        |
+| Unused code             | knip                             |
 
 [tsconfig-bases]: https://github.com/tsconfig/bases
 
