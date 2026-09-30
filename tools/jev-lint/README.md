@@ -1,6 +1,6 @@
 # jev-lint
 
-Semantic lint rules that ask [Jev](https://docs.typesafe.ai) one yes/no question about a code fragment.
+jev-lint asks [Jev](https://docs.typesafe.ai) one yes/no question per rule about each changed code fragment.
 
 | Aspect   | Policy                                                        |
 | -------- | ------------------------------------------------------------- |
@@ -10,35 +10,37 @@ Semantic lint rules that ask [Jev](https://docs.typesafe.ai) one yes/no question
 ## Usage
 
 ```sh
-just jev-lint                # Changed and untracked files against main
-just jev-lint --base HEAD~3  # Changes since another ref
-just jev-lint --staged       # Staged changes; the pre-commit hook runs this
+node tools/jev-lint/index.ts                # Changed and untracked files against main
+node tools/jev-lint/index.ts --base HEAD~3  # Changes since another ref
+node tools/jev-lint/index.ts --staged       # Staged changes, for a pre-commit hook
 ```
 
-- Reads `TYPESAFE_API_KEY` from 1Password through fnox, as set in `fnox.toml`
+- Reads `TYPESAFE_API_KEY` from the environment
 - Sends changed comments, functions, types, and tests to the TypeSafe API
 - Prints each finding as `file:line rule probability`
-- Accepts findings at 0.9 or more, where Jev matches a reasoning model
-- Marks findings from 0.5 to 0.9 `unsure` with the question for the agent
-- Exits 0: findings are candidates, not verdicts
+- Reports a finding when Jev answers yes with a probability of 0.9 or more
+  - At that level Jev is as accurate as a reasoning model ([arXiv 2609.26550](https://arxiv.org/abs/2609.26550))
+- Marks a finding from 0.5 to 0.9 `unsure` and prints its question
+  - The agent reading the output answers the question itself
+- Always exits 0, because a finding is a candidate for review
 
 ## Integrations
 
 ### hk
 
-`hk.pkl` runs jev-lint on staged changes in the `pre-commit` hook:
+Run jev-lint on staged changes in the `pre-commit` hook:
 
 ```pkl
 ["jev-lint"] {
     glob = List("**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}")
-    check = "fnox exec -- pnpm jev-lint --staged"
+    check = "node tools/jev-lint/index.ts --staged"
     output_summary = "stdout"
 }
 ```
 
 - hk stashes unstaged changes first, so the files on disk match the index
-- `output_summary` prints the findings after the hook run
-- The commit proceeds whatever jev-lint finds
+- `output_summary` makes hk print the findings after the hook runs
+- The commit goes through whatever jev-lint finds
 
 ## Rules
 
