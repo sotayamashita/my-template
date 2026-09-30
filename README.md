@@ -9,6 +9,12 @@ mise install
 just setup
 ```
 
+Zed needs the [tsgo extension](https://zed.dev/extensions/tsgo) for TS 7:
+
+```sh
+open zed://extension/tsgo
+```
+
 ## Commands
 
 ```sh

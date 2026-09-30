@@ -1,0 +1,36 @@
+// Needed for TypeScript 7, which Zed's default servers (vtsls and
+// typescript-language-server) cannot load. Requires the tsgo extension.
+//
+// Remove this file once Zed runs a TypeScript 7 server by default:
+// 1. Check https://zed.dev/docs/languages/typescript for the default server.
+// 2. Delete this file and confirm a .ts file still shows type errors.
+//
+// `package_version` must match package.json until the extension reads the
+// project's TypeScript: https://github.com/zed-extensions/tsgo/pull/61
+{
+  "languages": {
+    "TypeScript": {
+      "language_servers": [
+        "typescript-ls",
+        "!vtsls",
+        "!typescript-language-server",
+        "..."
+      ]
+    },
+    "TSX": {
+      "language_servers": [
+        "typescript-ls",
+        "!vtsls",
+        "!typescript-language-server",
+        "..."
+      ]
+    }
+  },
+  "lsp": {
+    "typescript-ls": {
+      "settings": {
+        "package_version": "7.0.2"
+      }
+    }
+  }
+}
