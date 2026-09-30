@@ -14,6 +14,12 @@ local linters = new Mapping {
     ["tsc"] = (Builtins.tsc) {
         check = "pnpm exec tsc --noEmit -p {{workspace_indicator}}"
     }
+    ["just_format"] = (Builtins.just_format) {
+        // The builtin runs `xargs -d`, which macOS xargs lacks, and has no check.
+        // `-I` alone already passes one file per line.
+        check = "xargs -I {} -- just --fmt --check --unstable --justfile {}"
+        fix = "xargs -I {} -- just --fmt --unstable --justfile {}"
+    }
     ["knip"] = (Builtins.knip) {
         check = "pnpm exec knip --no-progress --directory {{workspace}}"
         // The builtin fix deletes unused exports and dependencies on commit,
