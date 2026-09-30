@@ -1,45 +1,111 @@
-import { parseSync } from "oxc-parser";
+import { parseSync, Visitor } from "oxc-parser";
+import type {
+  ArrowFunctionExpression,
+  Expression,
+  Function as FunctionNode,
+  Program,
+} from "oxc-parser";
 
-/** A comment block with the code right after it. */
-export interface CommentFragment {
-  file: string;
-  line: number;
-  comment: string;
-  code: string;
+import type { Target } from "./rule.ts";
+
+type State =
+  | { code: string; comment: string; file: string }
+  | { code: string; file: string; imports: string }
+  | { code: string; file: string };
+
+interface Range {
+  start: number;
+  end: number;
 }
 
-interface Block {
-  startLine: number;
-  endLine: number;
-  startOffset: number;
-  endOffset: number;
+interface Span extends Range {
+  targets: readonly Target[];
+  state: State;
+}
+
+/** A piece of source and the targets whose rules judge it. */
+export interface Fragment {
+  targets: readonly Target[];
+  file: string;
+  line: number;
+  state: State;
 }
 
 const MAX_CODE_LINES = 10;
 
-const toBlocks = (file: string, source: string): Block[] => {
-  const lineOf = (offset: number) => source.slice(0, offset).split("\n").length;
-  const blocks: Block[] = [];
+const TEST_FUNCTIONS = new Set(["it", "test"]);
 
-  for (const comment of parseSync(file, source).comments) {
-    const startLine = lineOf(comment.start);
-    const endLine = lineOf(comment.end);
-    const last = blocks.at(-1);
-
-    if (last && startLine === last.endLine + 1) {
-      last.endLine = endLine;
-      last.endOffset = comment.end;
-    } else {
-      blocks.push({
-        endLine,
-        endOffset: comment.end,
-        startLine,
-        startOffset: comment.start,
-      });
-    }
+// `test.only(...)` and `it.each(...)(...)` both lead back to the test function.
+const rootName = (node: Expression): string => {
+  if (node.type === "Identifier") {
+    return node.name;
   }
+  if (node.type === "MemberExpression") {
+    return rootName(node.object);
+  }
+  if (node.type === "CallExpression") {
+    return rootName(node.callee);
+  }
+  return "";
+};
 
-  return blocks;
+const isFunction = (
+  node: { type: string } | null | undefined
+): node is ArrowFunctionExpression | FunctionNode =>
+  node?.type === "ArrowFunctionExpression" ||
+  node?.type === "FunctionExpression";
+
+const functionTargets = (
+  fn: ArrowFunctionExpression | FunctionNode
+): readonly Target[] =>
+  fn.returnType?.typeAnnotation.type === "TSTypePredicate"
+    ? ["function", "type-guard"]
+    : ["function"];
+
+const nodeSpans = (
+  program: Program,
+  { file, imports, source }: { file: string; imports: string; source: string }
+): Span[] => {
+  const spans: Span[] = [];
+  const add = (node: Range, targets: readonly Target[], extra = {}) => {
+    const code = source.slice(node.start, node.end);
+    spans.push({
+      end: node.end,
+      start: node.start,
+      state: { code, file, ...extra },
+      targets,
+    });
+  };
+
+  new Visitor({
+    CallExpression(node) {
+      if (
+        TEST_FUNCTIONS.has(rootName(node.callee)) &&
+        node.arguments.some(isFunction)
+      ) {
+        add(node, ["test"], { imports });
+      }
+    },
+    FunctionDeclaration(node) {
+      add(node, functionTargets(node));
+    },
+    MethodDefinition(node) {
+      add(node, functionTargets(node.value));
+    },
+    TSInterfaceDeclaration(node) {
+      add(node, ["type"]);
+    },
+    TSTypeAliasDeclaration(node) {
+      add(node, ["type"]);
+    },
+    VariableDeclarator(node) {
+      if (isFunction(node.init)) {
+        add(node, functionTargets(node.init));
+      }
+    },
+  }).visit(program);
+
+  return spans;
 };
 
 const codeAfter = (lines: readonly string[], line: number): string => {
@@ -56,29 +122,63 @@ const codeAfter = (lines: readonly string[], line: number): string => {
 };
 
 /**
- * Extract the comment blocks that touch a changed line.
- * Comments on consecutive lines form one block.
+ * Extract the comments, functions, types, and tests that touch a changed line.
+ * Comments on consecutive lines form one fragment.
  */
-export const extractComments = (
+export const extractFragments = (
   file: string,
   source: string,
   changedLines: ReadonlySet<number>
-): CommentFragment[] => {
+): Fragment[] => {
   const lines = source.split("\n");
+  let offset = 0;
+  const lineStarts = lines.map((text) => {
+    const start = offset;
+    offset += text.length + 1;
+    return start;
+  });
+  const lineOf = (position: number) =>
+    lineStarts.findLastIndex((start) => start <= position) + 1;
 
-  return toBlocks(file, source)
-    .filter((block) => {
-      for (let line = block.startLine; line <= block.endLine; line += 1) {
-        if (changedLines.has(line)) {
-          return true;
-        }
-      }
-      return false;
+  const { comments, module, program } = parseSync(file, source);
+  const imports = module.staticImports
+    .map(({ start, end }) => source.slice(start, end))
+    .join("\n");
+
+  const commentBlocks: Range[] = [];
+  for (const { start, end } of comments) {
+    const last = commentBlocks.at(-1);
+    if (last && lineOf(start) === lineOf(last.end) + 1) {
+      last.end = end;
+    } else {
+      commentBlocks.push({ end, start });
+    }
+  }
+
+  const spans: Span[] = [
+    ...commentBlocks.map(({ start, end }) => ({
+      end,
+      start,
+      state: {
+        code: codeAfter(lines, lineOf(end)),
+        comment: source.slice(start, end),
+        file,
+      },
+      targets: ["comment" as const],
+    })),
+    ...nodeSpans(program, { file, imports, source }),
+  ];
+
+  return spans
+    .filter(({ start, end }) => {
+      const first = lineOf(start);
+      const last = lineOf(end);
+      return [...changedLines].some((line) => line >= first && line <= last);
     })
-    .map((block) => ({
-      code: codeAfter(lines, block.endLine),
-      comment: source.slice(block.startOffset, block.endOffset),
+    .map(({ start, state, targets }) => ({
       file,
-      line: block.startLine,
+      line: lineOf(start),
+      state,
+      targets,
     }));
 };

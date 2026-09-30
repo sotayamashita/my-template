@@ -15,15 +15,28 @@ just jev-lint --base HEAD~3  # Changes since another ref
 ```
 
 - Reads `TYPESAFE_API_KEY` from 1Password through fnox, as set in `fnox.toml`
-- Sends the changed comments and nearby code to the TypeSafe API
+- Sends changed comments, functions, types, and tests to the TypeSafe API
 - Prints each finding as `file:line rule probability`
 - Exits 0: findings are candidates, not verdicts
 
 ## Rules
 
-| Rule | Question |
-| --- | --- |
-| `comment-narrates-code` | Does the comment only restate the code, without an outside constraint? |
+| Rule | Target | Question |
+| --- | --- | --- |
+| `comment-narrates-code` | comment | Does the comment only restate the code, without an outside constraint? |
+| `comment-excuses-workaround` | comment | Does the comment justify a surprise in our own code instead of fixing it? |
+| `comment-holds-type-invariant` | comment | Does the comment state a field rule that the type could encode? |
+| `suppression-hides-correctness` | comment | Does a lint or type suppression silence a correctness or safety rule? |
+| `lying-type-guard` | type guard | Can the type guard return true for a value that is not the type? |
+| `swallowed-error` | function | Does a catch hide a failure that the caller needed to know about? |
+| `pass-through-wrapper` | function | Does the function only forward its arguments to one call? |
+| `partiality-smell` | function | Does a "never happens" branch exist only because the input is loose? |
+| `redundant-internal-validation` | function | Does the function recheck data that is already a domain type? |
+| `unbranded-lookalike-params` | function | Do parameters share a primitive type but differ in meaning? |
+| `optional-field-bag` | type | Can the optional fields or booleans form a contradictory state? |
+| `test-observes-no-behavior` | test | Would the test pass if every function under test returned undefined? |
+| `test-constant-pin` | test | Does the assertion restate a constant instead of running logic? |
+| `test-self-referential` | test | Does the code under test compute the expected value? |
 
 ## Candidate rules
 
@@ -34,10 +47,7 @@ Add a candidate as a rule when reviews keep missing what it catches.
 | Rule | Question |
 | --- | --- |
 | `comment-contradicts-code` | Does the comment claim a behavior the code does not have? |
-| `comment-excuses-workaround` | Does the comment justify a surprise in our own code instead of fixing it? |
 | `workaround-without-constraint` | Does a workaround comment omit the constraint it works around? |
-| `comment-holds-type-invariant` | Does the comment state a field rule that the type could encode? |
-| `suppression-hides-correctness` | Does a lint or type suppression silence a correctness or safety rule? |
 
 ### Names
 
@@ -56,20 +66,7 @@ Add a candidate as a rule when reviews keep missing what it catches.
 | `multiple-responsibilities` | Does the function do jobs that change for different reasons? |
 | `hard-wired-nondeterminism` | Does core logic read the clock, randomness, or network directly? |
 | `speculative-abstraction` | Does an abstraction or option have one use and no present need? |
-| `pass-through-wrapper` | Does the function only forward its arguments to one call? |
-| `swallowed-error` | Does a catch hide a failure that the caller needed to know about? |
 | `inconsistent-error-strategy` | Do similar operations mix throw, Result, and null without reason? |
-| `unearned-cast` | Does an `as` cast claim a type that no earlier check proved? |
-| `lying-type-guard` | Can the type guard return true for a value that is not the type? |
-| `partiality-smell` | Does a "never happens" branch exist only because the input is loose? |
-| `redundant-internal-validation` | Does the function recheck data that is already a domain type? |
-
-### Types
-
-| Rule | Question |
-| --- | --- |
-| `optional-field-bag` | Can the optional fields or booleans form a contradictory state? |
-| `unbranded-lookalike-params` | Do parameters share a primitive type but differ in meaning? |
 
 ### Modules
 
@@ -84,12 +81,9 @@ Add a candidate as a rule when reviews keep missing what it catches.
 
 | Rule | Question |
 | --- | --- |
-| `test-observes-no-behavior` | Would the test pass if every function under test returned undefined? |
 | `weak-assertions` | Do the assertions check only existence or truthiness? |
 | `implementation-detail-assertions` | Does the test assert internal calls instead of observable results? |
 | `heavy-test-setup` | Does the unit need many mocked collaborators to run? |
-| `test-constant-pin` | Does the assertion restate a constant instead of running logic? |
-| `test-self-referential` | Does the code under test compute the expected value? |
 
 ### Commits
 

@@ -2,12 +2,10 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
-import { TypeSafeClient } from "@typesafe-ai/sdk";
+import { noul, TypeSafeClient } from "@typesafe-ai/sdk";
 
-import { extractComments } from "./extract.ts";
-import { commentNarratesCode } from "./rules/comment-narrates-code.ts";
-
-const commentRules = [commentNarratesCode];
+import { extractFragments } from "./extract.ts";
+import { rules } from "./rules/index.ts";
 
 const SOURCE_PATHSPECS = [
   "*.js",
@@ -19,6 +17,9 @@ const SOURCE_PATHSPECS = [
   "*.jsx",
   "*.tsx",
 ];
+
+// Violating samples scored 0.72 or more; most false positives stayed below 0.7.
+const THRESHOLD = 0.7;
 
 const HUNK_HEADER = /^@@ -\S+ \+(?<start>\d+)(?:,(?<count>\d+))? @@/u;
 
@@ -91,9 +92,7 @@ if ((process.env["TYPESAFE_API_KEY"] ?? "") === "") {
 }
 
 const client = new TypeSafeClient();
-const questions = Object.fromEntries(
-  commentRules.map((rule) => [rule.id, rule.question])
-);
+const rulesByTarget = Map.groupBy(rules, (rule) => rule.target);
 
 const changedLines = new Map([
   ...diffLinesByFile(values.base),
@@ -101,24 +100,38 @@ const changedLines = new Map([
 ]);
 
 const fragments = [...changedLines].flatMap(([file, lines]) =>
-  extractComments(file, readFileSync(file, "utf-8"), lines)
+  extractFragments(file, readFileSync(file, "utf-8"), lines)
 );
 
 const findings = await Promise.all(
-  fragments.map(async ({ file, line, comment, code }) => {
+  fragments.map(async ({ file, line, state, targets }) => {
+    const fragmentRules = targets.flatMap(
+      (target) => rulesByTarget.get(target) ?? []
+    );
     const { answers } = await client.systemOne({
-      questions,
-      state: { code, comment, file },
+      questions: Object.fromEntries(
+        fragmentRules.map((rule) => [
+          rule.id,
+          noul(rule.instructions, rule.criteria),
+        ])
+      ),
+      state,
     });
 
-    return commentRules
-      .map((rule) => ({ probability: answers[rule.id]?.noul ?? 0, rule }))
-      .filter(({ probability }) => probability > 0.5)
-      .map(
-        ({ probability, rule }) =>
-          `${file}:${line} ${rule.id} ${probability.toFixed(2)}\n`
-      );
+    return fragmentRules.flatMap((rule) => {
+      const probability = answers[rule.id]?.noul ?? 0;
+      return probability >= THRESHOLD
+        ? [{ file, line, probability, rule }]
+        : [];
+    });
   })
-);
+).then((results) => results.flat());
 
-process.stdout.write(findings.flat().join(""));
+process.stdout.write(
+  findings
+    .map(
+      ({ file, line, probability, rule }) =>
+        `${file}:${line} ${rule.id} ${probability.toFixed(2)}\n`
+    )
+    .join("")
+);
