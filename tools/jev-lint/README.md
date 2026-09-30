@@ -12,6 +12,7 @@ Semantic lint rules that ask [Jev](https://docs.typesafe.ai) one yes/no question
 ```sh
 just jev-lint                # Changed and untracked files against main
 just jev-lint --base HEAD~3  # Changes since another ref
+just jev-lint --staged       # Staged changes; the pre-commit hook runs this
 ```
 
 - Reads `TYPESAFE_API_KEY` from 1Password through fnox, as set in `fnox.toml`
@@ -20,6 +21,24 @@ just jev-lint --base HEAD~3  # Changes since another ref
 - Accepts findings at 0.9 or more, where Jev matches a reasoning model
 - Marks findings from 0.5 to 0.9 `unsure` with the question for the agent
 - Exits 0: findings are candidates, not verdicts
+
+## Integrations
+
+### hk
+
+`hk.pkl` runs jev-lint on staged changes in the `pre-commit` hook:
+
+```pkl
+["jev-lint"] {
+    glob = List("**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}")
+    check = "fnox exec -- pnpm jev-lint --staged"
+    output_summary = "stdout"
+}
+```
+
+- hk stashes unstaged changes first, so the files on disk match the index
+- `output_summary` prints the findings after the hook run
+- The commit proceeds whatever jev-lint finds
 
 ## Rules
 

@@ -29,7 +29,9 @@ const UNSURE_NOTE =
 
 const HUNK_HEADER = /^@@ -\S+ \+(?<start>\d+)(?:,(?<count>\d+))? @@/u;
 
-const diffLinesByFile = (base: string): Map<string, Set<number>> => {
+const diffLinesByFile = (
+  compareWith: readonly string[]
+): Map<string, Set<number>> => {
   const diff = execFileSync(
     "git",
     [
@@ -37,7 +39,7 @@ const diffLinesByFile = (base: string): Map<string, Set<number>> => {
       "--unified=0",
       "--no-color",
       "--diff-filter=AM",
-      base,
+      ...compareWith,
       "--",
       ...SOURCE_PATHSPECS,
     ],
@@ -89,7 +91,10 @@ const untrackedLinesByFile = (): Map<string, Set<number>> => {
 };
 
 const { values } = parseArgs({
-  options: { base: { default: "main", type: "string" } },
+  options: {
+    base: { default: "main", type: "string" },
+    staged: { default: false, type: "boolean" },
+  },
 });
 
 if ((process.env["TYPESAFE_API_KEY"] ?? "") === "") {
@@ -100,10 +105,11 @@ if ((process.env["TYPESAFE_API_KEY"] ?? "") === "") {
 const client = new TypeSafeClient();
 const rulesByTarget = Map.groupBy(rules, (rule) => rule.target);
 
-const changedLines = new Map([
-  ...diffLinesByFile(values.base),
-  ...untrackedLinesByFile(),
-]);
+const changedLines = new Map(
+  values.staged
+    ? diffLinesByFile(["--cached"])
+    : [...diffLinesByFile([values.base]), ...untrackedLinesByFile()]
+);
 
 const fragments = [...changedLines].flatMap(([file, lines]) =>
   extractFragments(file, readFileSync(file, "utf-8"), lines)

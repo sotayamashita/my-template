@@ -56,6 +56,13 @@ hooks {
             ["gitleaks"] = (Builtins.gitleaks) {
                 scan = "staged"
             }
+            ["jev-lint"] {
+                glob = List("**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}")
+                // hk stashes unstaged changes first, so the files on disk match the index.
+                // Findings are candidates for the agent to review, so it never fails.
+                check = "fnox exec -- pnpm jev-lint --staged"
+                output_summary = "stdout"
+            }
         }
     }
     ["commit-msg"] {
