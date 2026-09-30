@@ -1,0 +1,6 @@
+[providers.op]
+type = "1password"
+account = "my.1password.com"
+
+[secrets]
+TYPESAFE_API_KEY = { provider = "op", value = "op://Personal/jev-lint/credential" }

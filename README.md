@@ -34,6 +34,7 @@ just typecheck  # Check TypeScript types
 | Git hooks               | hk                               |
 | Commit messages         | commitlint                       |
 | Secret scanning         | gitleaks                         |
+| Secrets                 | fnox with 1Password              |
 | Type checking           | TypeScript                       |
 | TypeScript presets      | [tsconfig/bases][tsconfig-bases] |
 | Lint                    | oxlint                           |
