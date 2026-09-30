@@ -7,5 +7,5 @@
   "compilerOptions": {
     "noEmit": true
   },
-  "include": ["src"]
+  "include": ["src", "tools", "*.ts"]
 }
