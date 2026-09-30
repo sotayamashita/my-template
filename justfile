@@ -31,3 +31,7 @@ fix *args:
 # Check TypeScript types.
 typecheck *args:
     mise exec -- pnpm typecheck "$@"
+
+# Remove dependencies and build caches for a fresh install.
+clean:
+    mise exec -- git clean -xdf -- node_modules "*.tsbuildinfo"
