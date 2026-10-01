@@ -28,6 +28,24 @@ node tools/jev-lint/index.ts --staged       # Staged changes, for a pre-commit h
   - `requests.jsonl`: one line per request, with the fragment, every rule's probability, tokens, and latency
   - `fragmentKey` stays the same while the code does, so a label can cover every run
 
+## Evaluation
+
+Measure the rules against labeled cases before and after changing a rule or the extraction:
+
+```sh
+node tools/jev-lint/eval/index.ts                                       # Every case once
+node tools/jev-lint/eval/index.ts --runs 3                              # Each case three times, to see the spread
+node tools/jev-lint/eval/index.ts --rule suppression-hides-correctness  # One rule's cases
+```
+
+- Each case in `eval/cases/` is a source file, the text that marks a fragment, and whether the rule should report it
+  - The source goes through the same extraction as jev-lint, so a case also catches missing context
+- Prints `pass` or `FAIL` per case, then true and false positives and negatives per rule
+- Counts a case as reported when its mean probability is 0.9 or more
+- Appends each run to `log/evals.jsonl`, with the rule hashes to compare before and after a change
+- Exits 1 without `TYPESAFE_API_KEY`, unlike jev-lint, because an eval without answers measures nothing
+- Add a case for every false positive or miss found in use
+
 ## Integrations
 
 ### hk
