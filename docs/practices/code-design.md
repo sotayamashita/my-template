@@ -57,14 +57,19 @@ Stages 1 and 2 end in human approval, not a commit. The pre-commit hook runs the
 
 - Write branded types, their JSDoc, and their smart constructors in full.
   - Why: the constructor's checks are the invariants.
-- Declare every other exported function without a body.
+- Declare every other new exported function without a body.
   - Why: `noUnusedParameters` rejects a stub body that ignores its parameters.
+- Keep the body of an existing function whose contract changes; edit only its types and JSDoc.
+  - Why: the body still works for the unchanged behavior, and its tests keep passing.
 - Write functions that only connect other functions in full.
   - Why: tsc then reports where one result misses the next precondition.
 - State each exported function's input-output relation in its JSDoc.
   - Include formulas, rounding, bound behavior, and expected failures.
   - Why: stage 2 writes tests from this text alone.
 - Stop and ask the human when a required behavior is unspecified.
+- Write only behavior that callers need now; leave hypothetical cases out.
+  - Example: same-file types, not namespaces, shadowing, or generic references.
+  - Why: each case in the contract becomes tests and code to keep.
 - Done when `just typecheck` passes.
 - Stop for human review; continue only after approval. Do not commit.
 
@@ -81,8 +86,9 @@ export declare const bmi: (height: HeightMeter, weight: WeightKg) => number;
 - Write tests from the contract alone; the bodies do not exist yet.
 - Write expected values as literals worked out apart from the code.
   - Example: `toBeCloseTo(22.86, 2)`, not `toBe(70 / (1.75 * 1.75))`.
-- Done when `just typecheck` passes and `just test` fails only on declared functions.
-  - Vitest reports `TypeError: bmi is not a function` in each test that calls one.
+- Done when `just typecheck` passes and `just test` fails only on the new behavior.
+  - A declared function fails with `TypeError: bmi is not a function`.
+  - A kept body fails on its new expected values; its other tests pass.
 - Stop for human review; continue only after approval. Do not commit.
 - After approval, save the baseline that stage 3 (implementation) compares against:
   - Record the tree ID that `GIT_INDEX_FILE="$(mktemp -u)" sh -c 'git add -A && git write-tree'` prints.
@@ -92,7 +98,7 @@ export declare const bmi: (height: HeightMeter, weight: WeightKg) => number;
 
 ### Stage 3: implementation
 
-- Replace each `declare` with an implementation until `just test` passes.
+- Replace each `declare` and update each kept body until `just test` passes.
 - Keep the tests and the contract as they are.
 - Stop and report when a test or the contract looks wrong.
   - After the human fixes it in stage 1 (contract) or stage 2 (tests), save a new baseline.
@@ -102,14 +108,15 @@ export declare const bmi: (height: HeightMeter, weight: WeightKg) => number;
     - Get `<current tree>` with the same `git write-tree` command as in stage 2.
   - The contract emitted again to a new directory matches the stage 2 copy, with `diff -r`
   - `just jev-lint` findings are fixed or answered
-  - `just mutation` runs; report surviving mutants in changed code instead of adding tests
+  - `just mutation --mutate <changed file>` runs; report surviving mutants instead of adding tests
+    - Without `--mutate`, Stryker mutates only `src/` and `lib/`, and takes longer.
 - Stop for human review. Commit after approval, with every hook.
 
 | Rule | Check |
 | --- | --- |
 | Declare functions in stage 1 (contract) | tsc: TS6133 on a stub body that ignores its parameters |
 | Contracts connect | tsc: TS2345 in a function that connects others |
-| Tests fail only for missing bodies | Vitest: `TypeError: <name> is not a function` |
+| Tests fail only on the new behavior | Vitest: `TypeError: <name> is not a function`, or a changed expected value |
 | Stage 3 (implementation) keeps the tests | `git diff --name-status` between the stage 2 tree and the current tree; it shows added, changed, and removed test files |
 | Stage 3 (implementation) keeps the contract | `.d.ts` diff: a return type changed to `number` shows |
 | The implementation meets the contract | Vitest: `just test`; pre-commit runs `vitest related` on staged files |
