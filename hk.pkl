@@ -56,6 +56,11 @@ hooks {
             ["gitleaks"] = (Builtins.gitleaks) {
                 scan = "staged"
             }
+            ["vitest"] {
+                glob = List("**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}")
+                // Runs only the tests that import the staged files, directly or not.
+                check = "pnpm exec vitest related --run --passWithNoTests {{files}}"
+            }
             ["jev-lint"] {
                 glob = List("**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}")
                 // hk stashes unstaged changes first, so the files on disk match the index.

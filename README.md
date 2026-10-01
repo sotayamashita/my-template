@@ -22,6 +22,7 @@ just            # List commands
 just check      # Check lint rules and formatting
 just fix        # Fix lint violations and formatting
 just typecheck  # Check TypeScript types
+just test       # Run tests
 ```
 
 ## Opinionated stack
@@ -36,6 +37,7 @@ just typecheck  # Check TypeScript types
 | Secret scanning         | gitleaks                         |
 | Secrets                 | fnox with 1Password              |
 | Type checking           | TypeScript                       |
+| Tests                   | Vitest with fast-check           |
 | TypeScript presets      | [tsconfig/bases][tsconfig-bases] |
 | Lint                    | oxlint                           |
 | Format                  | oxfmt                            |

@@ -44,6 +44,10 @@ fix *args:
 typecheck *args:
     mise exec -- pnpm typecheck "$@"
 
+# Run tests.
+test *args:
+    mise exec -- pnpm test "$@"
+
 # Remove dependencies and build caches for a fresh install.
 clean:
     mise exec -- git clean -xdf -- node_modules "*.tsbuildinfo"
