@@ -10,7 +10,8 @@
     "test": "vitest run",
     "mutation": "stryker run",
     "jscpd": "jscpd .",
-    "jev-lint": "node tools/jev-lint/index.ts"
+    "jev-lint": "node tools/jev-lint/index.ts",
+    "jev-lint:eval": "node tools/jev-lint/eval/index.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.3",

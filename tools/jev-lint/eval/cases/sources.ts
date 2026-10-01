@@ -22,3 +22,7 @@ export const quantity = (value: number): Quantity => {
   return value as Quantity;
 };
 `;
+
+export const sortKeysSuppression = `// oxlint-disable-next-line sort-keys
+export const levels = { low: 1, high: 3, medium: 2 };
+`;

@@ -5,15 +5,17 @@ import { TypeSafeClient } from "@typesafe-ai/sdk";
 
 import { extractFragments } from "../extract.ts";
 import { ACCEPT, appendLog, ESCALATE, judge, ruleHashes } from "../judge.ts";
-import { rules } from "../rules/index.ts";
+import type { Rule } from "../rule.ts";
 import type { Case } from "./case.ts";
-import { cases as commentExcusesWorkaround } from "./cases/comment-excuses-workaround.ts";
-import { cases as suppressionHidesCorrectness } from "./cases/suppression-hides-correctness.ts";
+import { commentExcusesWorkaroundCases } from "./cases/comment-excuses-workaround.ts";
+import { suppressionHidesCorrectnessCases } from "./cases/suppression-hides-correctness.ts";
 
-const CASES: readonly Case[] = [
-  ...commentExcusesWorkaround,
-  ...suppressionHidesCorrectness,
-];
+const CASES = [
+  commentExcusesWorkaroundCases,
+  suppressionHidesCorrectnessCases,
+].flatMap(({ cases, rule }) =>
+  cases.map((testCase) => ({ ...testCase, rule }))
+);
 
 // TypeSafe charges for input tokens only.
 const USD_PER_INPUT_TOKEN = 0.042 / 1_000_000;
@@ -31,14 +33,13 @@ if ((process.env["TYPESAFE_API_KEY"] ?? "") === "") {
 }
 
 const client = new TypeSafeClient();
-const rulesById = new Map(rules.map((rule) => [rule.id, rule]));
 const runs = Number(values.runs);
 const selected = CASES.filter(
-  (testCase) => values.rule === undefined || testCase.rule === values.rule
+  (testCase) => values.rule === undefined || testCase.rule.id === values.rule
 );
 
-// The fragment that starts nearest above `at`, the way jev-lint would see it.
-const fragmentFor = (testCase: Case, target: string) => {
+// The innermost fragment for the rule's target at `at`, as jev-lint sends it.
+const fragmentFor = (testCase: Case, target: Rule["target"]) => {
   const line =
     testCase.source
       .split("\n")
@@ -47,10 +48,7 @@ const fragmentFor = (testCase: Case, target: string) => {
     "case.ts",
     testCase.source,
     new Set([line])
-  ).findLast(
-    (candidate) =>
-      candidate.line <= line && candidate.targets.some((t) => t === target)
-  );
+  ).findLast((candidate) => candidate.targets.includes(target));
   if (line === 0 || fragment === undefined) {
     throw new Error(
       `No ${target} fragment at "${testCase.at}" in "${testCase.name}".`
@@ -60,11 +58,7 @@ const fragmentFor = (testCase: Case, target: string) => {
 };
 
 const results = await Promise.all(
-  selected.map(async (testCase) => {
-    const rule = rulesById.get(testCase.rule);
-    if (rule === undefined) {
-      throw new Error(`Unknown rule "${testCase.rule}" in "${testCase.name}".`);
-    }
+  selected.map(async ({ rule, ...testCase }) => {
     const fragment = fragmentFor(testCase, rule.target);
     const answers = await Promise.all(
       Array.from(
