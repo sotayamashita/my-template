@@ -6,6 +6,10 @@ Rules for TypeScript functions in this repository. They let a reader, human or a
 - For a bug fix that keeps every contract, skip stage 1 (contract) and stage 2 (tests):
   - Add one test, written from the contract, that fails because of the bug.
   - Then fix the body.
+- For existing code without tests, follow every stage; the current behavior is the contract.
+  - Write down what callers rely on, not incidental behavior such as invalid inputs.
+  - Leave callers on the old code until stage 3 (implementation) replaces it.
+  - Run the stage 2 tests against the old code; human accepts each failure as a test fix or a behavior change.
 - Paths follow this template, where core functions live in `src/core/`.
   - In another layout, use the directory that the oxlint core override names.
 - Each rule section ends with a table of what reports a broken rule.
@@ -57,7 +61,7 @@ Stages 1 and 2 end in human approval, not a commit. The pre-commit hook runs the
   - Why: `noUnusedParameters` rejects a stub body that ignores its parameters.
 - Write functions that only connect other functions in full.
   - Why: tsc then reports where one result misses the next precondition.
-- State each function's input-output relation in its JSDoc.
+- State each exported function's input-output relation in its JSDoc.
   - Include formulas, rounding, bound behavior, and expected failures.
   - Why: stage 2 writes tests from this text alone.
 - Stop and ask the human when a required behavior is unspecified.
@@ -82,6 +86,7 @@ export declare const bmi: (height: HeightMeter, weight: WeightKg) => number;
 - Stop for human review; continue only after approval. Do not commit.
 - After approval, save the baseline that stage 3 (implementation) compares against:
   - Record the tree ID that `GIT_INDEX_FILE="$(mktemp -u)" sh -c 'git add -A && git write-tree'` prints.
+  - The command writes Git objects; a sandboxed agent may need approval or the human to run it.
   - Run `pnpm exec tsc --declaration --emitDeclarationOnly --noEmit false --outDir <dir>`, with `<dir>` outside the repository.
   - Why: the tree ID covers untracked test files, and neither step touches the index.
 
@@ -208,6 +213,9 @@ If jev-lint's `suppression-hides-correctness` flags the constructor's suppressio
 - Put the unit in the type name, such as `HeightMeter`.
 - Put the range and other conditions in the type's JSDoc, once.
 - Stop at level 3 for domain values.
+- Create a level 2 value in a constructor that accepts every value of the primitive.
+  - Say so in the type's JSDoc, as in `Every string is allowed.`
+  - jev-lint's `suppression-hides-correctness` may flag its cast; answer no when the JSDoc allows every value.
 - Move to level 4 only when two units occur in the code.
 - Keep a return type as `number` until another function takes it as input.
 
@@ -253,6 +261,8 @@ const findUser = (id: UserId): User | undefined => users.get(id);
 
 - State the required relation in JSDoc, even when a short expression computes it.
 - Leave implementation steps and local variables out of JSDoc.
+- Give a non-exported helper a comment only for a reason the code cannot show.
+  - Why: its caller is in the same file, so the code is the contract.
   - Why: the relation is what tests check; steps drift from the body as it changes.
 - Write an example as a concrete input and output.
 - Write a relation that holds for every input as a property test.
