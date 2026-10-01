@@ -9,11 +9,11 @@ export default defineConfig({
   // Ultracite core already sets typed rules such as no-floating-promises;
   // they only run with type-aware linting.
   options: { typeAware: true },
-  // src/core holds pure functions, so their signatures and tests are the
+  // Core directories hold pure functions, so their signatures and tests are the
   // whole contract. I/O, the clock, and randomness stay outside it.
   overrides: [
     {
-      files: ["src/core/**"],
+      files: ["src/core/**", "tools/jev-lint/core/**"],
       rules: {
         "no-restricted-globals": [
           "error",

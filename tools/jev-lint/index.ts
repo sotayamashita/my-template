@@ -5,7 +5,13 @@ import { parseArgs } from "node:util";
 
 import { TypeSafeClient } from "@typesafe-ai/sdk";
 
-import { extractFragments } from "./extract.ts";
+import type { Line } from "./core/extract.ts";
+import {
+  extractFragments,
+  line as sourceLine,
+  sourceFilePath,
+  sourceText,
+} from "./core/extract.ts";
 import { ACCEPT, appendLog, ESCALATE, judge, ruleHashes } from "./judge.ts";
 import { rules } from "./rules/index.ts";
 
@@ -27,7 +33,7 @@ const HUNK_HEADER = /^@@ -\S+ \+(?<start>\d+)(?:,(?<count>\d+))? @@/u;
 
 const diffLinesByFile = (
   compareWith: readonly string[]
-): Map<string, Set<number>> => {
+): Map<string, Set<Line>> => {
   const diff = execFileSync(
     "git",
     [
@@ -41,8 +47,8 @@ const diffLinesByFile = (
     ],
     { encoding: "utf-8" }
   );
-  const changed = new Map<string, Set<number>>();
-  let lines = new Set<number>();
+  const changed = new Map<string, Set<Line>>();
+  let lines = new Set<Line>();
 
   for (const text of diff.split("\n")) {
     if (text.startsWith("+++ b/")) {
@@ -55,8 +61,12 @@ const diffLinesByFile = (
     if (hunk?.["start"] !== undefined) {
       const start = Number(hunk["start"]);
       const count = Number(hunk["count"] ?? "1");
-      for (let line = start; line < start + count; line += 1) {
-        lines.add(line);
+      for (
+        let lineNumber = start;
+        lineNumber < start + count;
+        lineNumber += 1
+      ) {
+        lines.add(sourceLine(lineNumber));
       }
     }
   }
@@ -65,7 +75,7 @@ const diffLinesByFile = (
 };
 
 // `git diff` skips untracked files, where new work sits until it is staged.
-const untrackedLinesByFile = (): Map<string, Set<number>> => {
+const untrackedLinesByFile = (): Map<string, Set<Line>> => {
   const files = execFileSync(
     "git",
     ["ls-files", "--others", "--exclude-standard", "--", ...SOURCE_PATHSPECS],
@@ -80,7 +90,9 @@ const untrackedLinesByFile = (): Map<string, Set<number>> => {
         const lineCount = readFileSync(file, "utf-8").split("\n").length;
         return [
           file,
-          new Set(Array.from({ length: lineCount }, (_, i) => i + 1)),
+          new Set(
+            Array.from({ length: lineCount }, (_, i) => sourceLine(i + 1))
+          ),
         ];
       })
   );
@@ -109,7 +121,11 @@ const changedLines = new Map(
 );
 
 const fragments = [...changedLines].flatMap(([file, lines]) =>
-  extractFragments(file, readFileSync(file, "utf-8"), lines)
+  extractFragments(
+    sourceFilePath(file),
+    sourceText(readFileSync(file, "utf-8")),
+    lines
+  )
 );
 
 if (fragments.length === 0) {

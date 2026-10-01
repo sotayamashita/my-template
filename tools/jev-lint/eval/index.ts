@@ -3,7 +3,12 @@ import { parseArgs } from "node:util";
 
 import { TypeSafeClient } from "@typesafe-ai/sdk";
 
-import { extractFragments } from "../extract.ts";
+import {
+  extractFragments,
+  line,
+  sourceFilePath,
+  sourceText,
+} from "../core/extract.ts";
 import { ACCEPT, appendLog, ESCALATE, judge, ruleHashes } from "../judge.ts";
 import type { Rule } from "../rule.ts";
 import type { Case } from "./case.ts";
@@ -42,16 +47,16 @@ const selected = CASES.filter(
 
 // The innermost fragment for the rule's target at `at`, as jev-lint sends it.
 const fragmentFor = (testCase: Case, target: Rule["target"]) => {
-  const line =
+  const lineNumber =
     testCase.source
       .split("\n")
       .findIndex((text) => text.includes(testCase.at)) + 1;
   const fragment = extractFragments(
-    "case.ts",
-    testCase.source,
-    new Set([line])
+    sourceFilePath("case.ts"),
+    sourceText(testCase.source),
+    new Set(lineNumber === 0 ? [] : [line(lineNumber)])
   ).findLast((candidate) => candidate.targets.includes(target));
-  if (line === 0 || fragment === undefined) {
+  if (lineNumber === 0 || fragment === undefined) {
     throw new Error(
       `No ${target} fragment at "${testCase.at}" in "${testCase.name}".`
     );

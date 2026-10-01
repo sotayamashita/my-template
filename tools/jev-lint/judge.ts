@@ -4,7 +4,7 @@ import { appendFileSync, mkdirSync } from "node:fs";
 import { noul } from "@typesafe-ai/sdk";
 import type { TypeSafeClient } from "@typesafe-ai/sdk";
 
-import type { Fragment } from "./extract.ts";
+import type { Fragment } from "./core/extract.ts";
 import type { Rule } from "./rule.ts";
 import { rules } from "./rules/index.ts";
 
