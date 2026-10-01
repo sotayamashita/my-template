@@ -155,18 +155,27 @@ export const extractFragments = (
     }
   }
 
+  const nodes = nodeSpans(program, { file, imports, source });
+  const functions = nodes.filter(({ targets }) =>
+    targets.some((target) => target === "function" || target === "test")
+  );
+  // A comment often refers to code above it, such as a check that makes a
+  // suppression safe, so a comment inside a function gets the whole function.
+  const codeAround = ({ start, end }: Range) =>
+    functions.findLast((fn) => fn.start <= start && end <= fn.end)?.state
+      .code ?? codeAfter(lines, lineOf(end));
+
   const spans: Span[] = [
-    ...commentBlocks.map(({ start, end }) => ({
-      end,
-      start,
+    ...commentBlocks.map((block) => ({
+      ...block,
       state: {
-        code: codeAfter(lines, lineOf(end)),
-        comment: source.slice(start, end),
+        code: codeAround(block),
+        comment: source.slice(block.start, block.end),
         file,
       },
       targets: ["comment" as const],
     })),
-    ...nodeSpans(program, { file, imports, source }),
+    ...nodes,
   ];
 
   return spans
