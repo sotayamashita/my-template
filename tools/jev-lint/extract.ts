@@ -160,10 +160,18 @@ export const extractFragments = (
     targets.some((target) => target === "function" || target === "test")
   );
   // A comment often refers to code above it, such as a check that makes a
-  // suppression safe, so a comment inside a function gets the whole function.
-  const codeAround = ({ start, end }: Range) =>
-    functions.findLast((fn) => fn.start <= start && end <= fn.end)?.state
-      .code ?? codeAfter(lines, lineOf(end));
+  // suppression safe, so a comment inside a function gets the function up to
+  // MAX_CODE_LINES after the comment.
+  const codeAround = ({ start, end }: Range) => {
+    const fn = functions.findLast(
+      (candidate) => candidate.start <= start && end <= candidate.end
+    );
+    if (fn === undefined) {
+      return codeAfter(lines, lineOf(end));
+    }
+    const stop = lineStarts[lineOf(end) + MAX_CODE_LINES] ?? source.length;
+    return source.slice(fn.start, Math.min(fn.end, stop));
+  };
 
   const spans: Span[] = [
     ...commentBlocks.map((block) => ({
