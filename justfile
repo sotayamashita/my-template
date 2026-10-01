@@ -48,6 +48,10 @@ typecheck *args:
 test *args:
     mise exec -- pnpm test "$@"
 
+# Find code the tests do not pin down; slow, so run it by hand.
+mutation *args:
+    mise exec -- pnpm mutation "$@"
+
 # Remove dependencies and build caches for a fresh install.
 clean:
     mise exec -- git clean -xdf -- node_modules "*.tsbuildinfo"
