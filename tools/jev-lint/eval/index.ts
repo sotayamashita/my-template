@@ -8,10 +8,12 @@ import { ACCEPT, appendLog, ESCALATE, judge, ruleHashes } from "../judge.ts";
 import type { Rule } from "../rule.ts";
 import type { Case } from "./case.ts";
 import { commentExcusesWorkaroundCases } from "./cases/comment-excuses-workaround.ts";
+import { commentNarratesCodeCases } from "./cases/comment-narrates-code.ts";
 import { suppressionHidesCorrectnessCases } from "./cases/suppression-hides-correctness.ts";
 
 const CASES = [
   commentExcusesWorkaroundCases,
+  commentNarratesCodeCases,
   suppressionHidesCorrectnessCases,
 ].flatMap(({ cases, rule }) =>
   cases.map((testCase) => ({ ...testCase, rule }))

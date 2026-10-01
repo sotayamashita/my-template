@@ -4,10 +4,11 @@ export const commentNarratesCode: Rule = {
   criteria: {
     false: {
       description:
-        "The comment gives a reason: an outside constraint, a contract, a license, or a non-obvious why.",
+        "The comment gives a reason: an outside constraint, a contract, a license, or a non-obvious why. A doc comment on a function that states the required input-output relation, such as a formula, rounding, or pricing rule, is a contract even when the body computes it in one line.",
       examples: [
         "// Safari fires `blur` before `click`, so close the menu on mousedown.",
         "/** Returns null when the user has no active session. */",
+        "/** 15% of the price, rounded down to the yen. */",
       ],
     },
     true: {
