@@ -4,9 +4,10 @@ export const commentExcusesWorkaround: Rule = {
   criteria: {
     false: {
       description:
-        "The comment names an outside constraint we cannot change, such as a browser, vendor API, or spec, or it excuses nothing, such as a bare lint suppression.",
+        "The comment names an outside constraint we cannot change, such as a browser, vendor API, or spec, states a check that `code` makes, such as a `SAFETY:` line, or excuses nothing, such as a bare lint suppression.",
       examples: [
         "// Safari fires `blur` before `click`, so close the menu on mousedown.",
+        "// SAFETY: the check above enforces the Quantity invariant.",
         "// oxlint-disable-next-line sort-keys",
       ],
     },
