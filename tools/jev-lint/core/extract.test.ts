@@ -498,6 +498,411 @@ outside();`);
     });
   });
 
+  describe("asserted type declarations in comment context", () => {
+    test.each([
+      {
+        changed: 5,
+        code: `path = (value: string): Path =>
+  // context
+  value as Path
+
+/** Every string is allowed; the brand marks a parser file name. */
+export type Path = string & { readonly __brand: "Path" };`,
+        name: "role brand and its JSDoc",
+        source: `/** Every string is allowed; the brand marks a parser file name. */
+export type Path = string & { readonly __brand: "Path" };
+
+export const path = (value: string): Path =>
+  // context
+  value as Path;`,
+      },
+      {
+        changed: 5,
+        code: `email = (value: string): Email =>
+  // context
+  value as Email
+
+/** Must contain exactly one "@". */
+export type Email = string & { readonly __brand: "Email" };`,
+        name: "brand with a condition and its JSDoc",
+        source: `/** Must contain exactly one "@". */
+export type Email = string & { readonly __brand: "Email" };
+
+export const email = (value: string): Email =>
+  // context
+  value as Email;`,
+      },
+      {
+        changed: 9,
+        code: `record = (value: unknown) => {
+  // context
+  return value as Record;
+}
+
+/**
+ * 日本語😀 and original spacing.
+ */
+export interface Record {
+  readonly name: string;
+}`,
+        name: "exported interface with exact multiline JSDoc and source",
+        source: `/**
+ * 日本語😀 and original spacing.
+ */
+export interface Record {
+  readonly name: string;
+}
+
+const record = (value: unknown) => {
+  // context
+  return value as Record;
+};`,
+      },
+      {
+        changed: 5,
+        code: `path = (value: string) => {
+  // context
+  return value as Path;
+}
+
+type Path = string;`,
+        name: "type alias without JSDoc, excluding a regular leading comment",
+        source: `// A regular comment, not JSDoc.
+type Path = string;
+
+const path = (value: string) => {
+  // context
+  return value as Path;
+};`,
+      },
+    ])("appends $name", ({ changed, code, source }) => {
+      expect(
+        extractFragments(file, sourceText(source), new Set([line(changed)]))[0]
+      ).toEqual({
+        file: "a.ts",
+        line: changed,
+        state: { code, comment: "// context", file: "a.ts" },
+        targets: ["comment"],
+      });
+    });
+
+    test("includes a type declaration that follows the assertion", () => {
+      const source = sourceText(`const path = (value: string) => {
+  // context
+  return value as Path;
+};
+
+/** Every string is allowed. */
+type Path = string;`);
+
+      expect(extractFragments(file, source, new Set([line(2)]))[0]).toEqual({
+        file: "a.ts",
+        line: 2,
+        state: {
+          code: "path = (value: string) => {\n  // context\n  return value as Path;\n}\n\n/** Every string is allowed. */\ntype Path = string;",
+          comment: "// context",
+          file: "a.ts",
+        },
+        targets: ["comment"],
+      });
+    });
+
+    test("appends each asserted type once in declaration source order", () => {
+      const source = sourceText(`/** First declaration. */
+type First = string;
+/** Second declaration. */
+interface Second { readonly name: string; }
+type Unrelated = number;
+
+const convert = (value: unknown) => {
+  // context
+  const second = value as Second;
+  const first = value as First;
+  return [second, first, value as Second];
+};`);
+
+      expect(extractFragments(file, source, new Set([line(8)]))[0]).toEqual({
+        file: "a.ts",
+        line: 8,
+        state: {
+          code: `convert = (value: unknown) => {
+  // context
+  const second = value as Second;
+  const first = value as First;
+  return [second, first, value as Second];
+}
+
+/** First declaration. */
+type First = string;
+
+/** Second declaration. */
+interface Second { readonly name: string; }`,
+          comment: "// context",
+          file: "a.ts",
+        },
+        targets: ["comment"],
+      });
+    });
+
+    test("includes an assertion before the comment in its original context", () => {
+      const source = sourceText(`type Path = string;
+
+function path(value: string) {
+  const result = value as Path;
+  // context
+  return result;
+}`);
+
+      expect(extractFragments(file, source, new Set([line(5)]))[0]).toEqual({
+        file: "a.ts",
+        line: 5,
+        state: {
+          code: "function path(value: string) {\n  const result = value as Path;\n  // context\n  return result;\n}\n\ntype Path = string;",
+          comment: "// context",
+          file: "a.ts",
+        },
+        targets: ["comment"],
+      });
+    });
+
+    test("appends declarations for an assertion outside a function", () => {
+      const source = sourceText(`/** Every string is allowed. */
+type Path = string;
+
+// context
+const result = value as Path;`);
+
+      expect(extractFragments(file, source, new Set([line(4)]))).toEqual([
+        {
+          file: "a.ts",
+          line: 4,
+          state: {
+            code: "const result = value as Path;\n\n/** Every string is allowed. */\ntype Path = string;",
+            comment: "// context",
+            file: "a.ts",
+          },
+          targets: ["comment"],
+        },
+      ]);
+    });
+
+    test("keeps function and type fragments unchanged when they contain an assertion", () => {
+      const source = sourceText(`/** Every string is allowed. */
+type Path = string;
+
+const path = (value: string) => {
+  // context
+  return value as Path;
+};`);
+
+      const fragments = extractFragments(
+        file,
+        source,
+        new Set([line(2), line(5)])
+      );
+
+      expect(fragments.slice(1)).toEqual([
+        {
+          file: "a.ts",
+          line: 2,
+          state: { code: "type Path = string;", file: "a.ts" },
+          targets: ["type"],
+        },
+        {
+          file: "a.ts",
+          line: 4,
+          state: {
+            code: "path = (value: string) => {\n  // context\n  return value as Path;\n}",
+            file: "a.ts",
+          },
+          targets: ["function"],
+        },
+      ]);
+    });
+
+    test.each([
+      {
+        code: "const result = value as Imported;",
+        name: "imported type",
+        source:
+          'import type { Imported } from "./missing.ts";\n\n// context\nconst result = value as Imported;',
+      },
+      {
+        code: "const result = value as Missing;",
+        name: "unresolved reference",
+        source:
+          "type Path = string;\n\n// context\nconst result = value as Missing;",
+      },
+      {
+        code: "const result = value as Types.Path;",
+        name: "qualified reference",
+        source:
+          "type Path = string;\n\n// context\nconst result = value as Types.Path;",
+      },
+      {
+        code: "const result = value as Path<string>;",
+        name: "generic reference",
+        source:
+          "type Path<T> = T;\n\n// context\nconst result = value as Path<string>;",
+      },
+      {
+        code: "const result = <Path>value;",
+        name: "angle-bracket assertion",
+        source:
+          "type Path = string;\n\n// context\nconst result = <Path>value;",
+      },
+      {
+        code: "const result = value satisfies Path;",
+        name: "satisfies expression",
+        source:
+          "type Path = string;\n\n// context\nconst result = value satisfies Path;",
+      },
+      {
+        code: "const result = value as string;",
+        name: "primitive asserted type",
+        source:
+          "type Path = string;\n\n// context\nconst result = value as string;",
+      },
+      {
+        code: "const result = value as { readonly name: Path };",
+        name: "inline asserted type",
+        source:
+          "type Path = string;\n\n// context\nconst result = value as { readonly name: Path };",
+      },
+      {
+        code: "const result = value as Path | undefined;",
+        name: "union asserted type",
+        source:
+          "type Path = string;\n\n// context\nconst result = value as Path | undefined;",
+      },
+      {
+        code: 'const result = "value as Path";',
+        name: "assertion text in a string",
+        source:
+          'type Path = string;\n\n// context\nconst result = "value as Path";',
+      },
+      {
+        code: "const result = value;",
+        comment: "// context\n// value as Path",
+        name: "assertion text in a comment",
+        source:
+          "type Path = string;\n\n// context\n// value as Path\nconst result = value;",
+      },
+    ])(
+      "does not append declarations for $name",
+      ({ code, comment = "// context", source }) => {
+        expect(
+          extractFragments(file, sourceText(source), new Set([line(3)]))
+        ).toEqual([
+          {
+            file: "a.ts",
+            line: 3,
+            state: {
+              code,
+              comment,
+              file: "a.ts",
+            },
+            targets: ["comment"],
+          },
+        ]);
+      }
+    );
+
+    test.each([
+      "type Path = string;",
+      "interface Path { readonly name: string; }",
+    ])("does not append a nested declaration: %s", (declaration) => {
+      const source = sourceText(`function outer() {
+  ${declaration}
+  const path = (value: unknown) => {
+    // context
+    return value as Path;
+  };
+}`);
+
+      expect(extractFragments(file, source, new Set([line(4)]))[0]).toEqual({
+        file: "a.ts",
+        line: 4,
+        state: {
+          code: "path = (value: unknown) => {\n    // context\n    return value as Path;\n  }",
+          comment: "// context",
+          file: "a.ts",
+        },
+        targets: ["comment"],
+      });
+    });
+
+    test("searches only through the tenth line after an inside comment", () => {
+      const source = sourceText(`type Included = string;
+type Excluded = number;
+
+function convert(value: unknown) {
+  // context
+  one();
+  two();
+  three();
+  four();
+  five();
+  six();
+  seven();
+  eight();
+  nine();
+  value as Included;
+  value as Excluded;
+}`);
+
+      expect(extractFragments(file, source, new Set([line(5)]))[0]).toEqual({
+        file: "a.ts",
+        line: 5,
+        state: {
+          code: "function convert(value: unknown) {\n  // context\n  one();\n  two();\n  three();\n  four();\n  five();\n  six();\n  seven();\n  eight();\n  nine();\n  value as Included;\n\ntype Included = string;",
+          comment: "// context",
+          file: "a.ts",
+        },
+        targets: ["comment"],
+      });
+    });
+
+    test("does not search past the first blank line outside a function", () => {
+      const source = sourceText(`type Path = string;
+
+// context
+work();
+
+value as Path;`);
+
+      expect(extractFragments(file, source, new Set([line(3)]))).toEqual([
+        {
+          file: "a.ts",
+          line: 3,
+          state: { code: "work();", comment: "// context", file: "a.ts" },
+          targets: ["comment"],
+        },
+      ]);
+    });
+
+    test("does not search past the end of the containing function", () => {
+      const source = sourceText(`type Path = string;
+
+function convert() {
+  // context
+  work();
+}
+value as Path;`);
+
+      expect(extractFragments(file, source, new Set([line(4)]))[0]).toEqual({
+        file: "a.ts",
+        line: 4,
+        state: {
+          code: "function convert() {\n  // context\n  work();\n}",
+          comment: "// context",
+          file: "a.ts",
+        },
+        targets: ["comment"],
+      });
+    });
+  });
+
   test("orders comments first and retains overlapping outer and inner functions", () => {
     const source = sourceText(`function outer() {
   // inner

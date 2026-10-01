@@ -2,6 +2,7 @@ import { parseSync, Visitor } from "oxc-parser";
 import type {
   Argument,
   ArrowFunctionExpression,
+  Comment,
   Expression,
   Function as FunctionNode,
   Program,
@@ -187,6 +188,73 @@ const codeAfter = (lines: readonly string[], endLine: Line): string => {
   return code.join("\n");
 };
 
+interface NamedAssertion extends Range {
+  readonly name: string;
+}
+
+const namedAssertions = (program: Program): NamedAssertion[] => {
+  const assertions: NamedAssertion[] = [];
+
+  new Visitor({
+    TSAsExpression(node) {
+      const type = node.typeAnnotation;
+
+      if (
+        type.type === "TSTypeReference" &&
+        type.typeName.type === "Identifier" &&
+        type.typeArguments === null
+      ) {
+        assertions.push({
+          end: node.end,
+          name: type.typeName.name,
+          start: node.start,
+        });
+      }
+    },
+  }).visit(program);
+
+  return assertions;
+};
+
+const topLevelTypes = (
+  program: Program,
+  comments: readonly Comment[],
+  source: SourceText
+): ReadonlyMap<string, string> => {
+  const declarations = new Map<string, string>();
+
+  for (const statement of program.body) {
+    const node =
+      statement.type === "ExportNamedDeclaration" ||
+      statement.type === "ExportDefaultDeclaration"
+        ? statement.declaration
+        : statement;
+
+    if (
+      node?.type !== "TSTypeAliasDeclaration" &&
+      node?.type !== "TSInterfaceDeclaration"
+    ) {
+      continue;
+    }
+
+    if (declarations.has(node.id.name)) {
+      continue;
+    }
+
+    const comment = comments.findLast(({ end }) => end <= statement.start);
+    const start =
+      comment?.type === "Block" &&
+      source.startsWith("/**", comment.start) &&
+      source.slice(comment.end, statement.start).trim() === ""
+        ? comment.start
+        : statement.start;
+
+    declarations.set(node.id.name, source.slice(start, statement.end));
+  }
+
+  return declarations;
+};
+
 /**
  * Return fragments when a changed line falls within their first-to-last
  * lines, inclusive. Comment fragments come first in source order, then other
@@ -197,6 +265,12 @@ const codeAfter = (lines: readonly string[], endLine: Line): string => {
  * collected span's start and extends through ten lines after the block,
  * capped at that span's end. Otherwise it contains up to ten following lines,
  * stopping before the first blank line; context can be empty.
+ * For `as X` in the original comment context, where X is a plain identifier
+ * naming a top-level same-file type alias or interface, append its exact
+ * declaration source with its directly preceding JSDoc to state.code.
+ * Append each type once in source order, separated by one blank line.
+ * Imports, qualified or generic references, nested type declarations,
+ * and other assertion forms add nothing; non-comment fragments stay unchanged.
  * Function declarations, class methods, and variable declarators initialized
  * with an arrow function or function expression have ["function"] targets.
  * A type-predicate return annotation adds "type-guard", including assertions.
@@ -233,6 +307,8 @@ export const extractFragments = (
     line(lineStarts.findLastIndex((start) => start <= position) + 1);
 
   const { comments, module, program } = parseSync(file, source);
+  const assertions = namedAssertions(program);
+  const declarations = topLevelTypes(program, comments, source);
   const imports = module.staticImports
     .map(({ start, end }) => source.slice(start, end))
     .join("\n");
@@ -253,27 +329,47 @@ export const extractFragments = (
   const functions = nodes.filter(({ targets }) =>
     targets.some((target) => target === "function" || target === "test")
   );
-  const codeAround = ({ start, end }: Range): string => {
+  const codeAround = ({ start, end }: Range): Range => {
     const fn = functions.findLast(
       (candidate) => candidate.start <= start && end <= candidate.end
     );
 
     if (fn === undefined) {
-      return codeAfter(lines, lineOf(end));
+      const contextStart = lineStarts[lineOf(end)] ?? source.length;
+      const code = codeAfter(lines, lineOf(end));
+
+      return { end: contextStart + code.length, start: contextStart };
     }
 
     const nextLineStart = lineStarts[lineOf(end) + MAX_CODE_LINES];
     const stop =
       nextLineStart === undefined ? source.length : nextLineStart - 1;
 
-    return source.slice(fn.start, Math.min(fn.end, stop));
+    return { end: Math.min(fn.end, stop), start: fn.start };
+  };
+  const codeWithTypes = (block: Range): string => {
+    const context = codeAround(block);
+    const names = new Set(
+      assertions
+        .filter(
+          ({ start, end }) => start >= context.start && end <= context.end
+        )
+        .map(({ name }) => name)
+    );
+
+    return [
+      source.slice(context.start, context.end),
+      ...[...declarations]
+        .filter(([name]) => names.has(name))
+        .map(([, code]) => code),
+    ].join("\n\n");
   };
 
   const spans: Span[] = [
     ...commentBlocks.map((block) => ({
       ...block,
       state: {
-        code: codeAround(block),
+        code: codeWithTypes(block),
         comment: source.slice(block.start, block.end),
         file,
       },
