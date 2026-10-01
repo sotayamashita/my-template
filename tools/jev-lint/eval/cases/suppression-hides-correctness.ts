@@ -1,6 +1,8 @@
 import { suppressionHidesCorrectness } from "../../rules/suppression-hides-correctness.ts";
 import type { RuleCases } from "../case.ts";
 import {
+  roleBrand,
+  roleBrandWithCondition,
   smartConstructor,
   sortKeysSuppression,
   uncheckedBrand,
@@ -45,6 +47,18 @@ export const suppressionHidesCorrectnessCases: RuleCases = {
       expected: false,
       name: "smart constructor brand cast",
       source: smartConstructor,
+    },
+    {
+      at: "// SAFETY:",
+      expected: false,
+      name: "role brand that allows every value",
+      source: roleBrand,
+    },
+    {
+      at: "// SAFETY:",
+      expected: true,
+      name: "role brand cast for a type with a condition",
+      source: roleBrandWithCondition,
     },
   ],
   rule: suppressionHidesCorrectness,
