@@ -116,14 +116,17 @@ const caseLines = results.map((result) => {
   return `${verdict} ${result.rule} "${result.name}" want ${want}, got ${result.mean.toFixed(2)} (${spread})${result.unsure ? " unsure" : ""}\n`;
 });
 
+const outcome = ({ expected, reported }: (typeof results)[number]) =>
+  `${reported === expected ? "T" : "F"}${reported ? "P" : "N"}`;
+
 const summary = [...Map.groupBy(results, (result) => result.rule)].map(
   ([rule, ruleResults]) => {
-    const count = (expected: boolean, reported: boolean) =>
-      ruleResults.filter(
-        (result) => result.expected === expected && result.reported === reported
-      ).length;
+    const counts = Map.groupBy(ruleResults, outcome);
     const unsure = ruleResults.filter((result) => result.unsure).length;
-    return `${rule}: TP ${count(true, true)} FP ${count(false, true)} FN ${count(true, false)} TN ${count(false, false)} unsure ${unsure}\n`;
+    const columns = ["TP", "FP", "FN", "TN"].map(
+      (name) => `${name} ${counts.get(name)?.length ?? 0}`
+    );
+    return `${rule}: ${columns.join(" ")} unsure ${unsure}\n`;
   }
 );
 
