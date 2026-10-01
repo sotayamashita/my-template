@@ -10,7 +10,7 @@ import { rules } from "./rules/index.ts";
 
 // Jev judges as well as a reasoning model at 0.9 or more, so accept those.
 // Below that, most of its errors fall in; the reading agent decides instead.
-// @see {@link https://arxiv.org/abs/2609.26550}
+// @see {@link https://arxiv.org/abs/2609.26550|JEV-as-a-Judge}
 export const ACCEPT = 0.9;
 export const ESCALATE = 0.5;
 
