@@ -55,6 +55,8 @@ just              # List commands
 just check        # Check lint rules and formatting
 just fix          # Fix lint violations and formatting
 just typecheck    # Check TypeScript types
+just test         # Run tests
+just mutation     # Find code the tests do not pin down
 just sync-secrets # Refresh the local secrets cache
 ```
 
@@ -70,6 +72,8 @@ just sync-secrets # Refresh the local secrets cache
 | Secret scanning         | gitleaks                         |
 | Secrets                 | fnox with 1Password and age      |
 | Type checking           | TypeScript                       |
+| Tests                   | Vitest with fast-check           |
+| Mutation testing        | Stryker                          |
 | TypeScript presets      | [tsconfig/bases][tsconfig-bases] |
 | Lint                    | oxlint                           |
 | Format                  | oxfmt                            |
