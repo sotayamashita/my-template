@@ -10,6 +10,9 @@ Rules for TypeScript functions in this repository. They let a reader, human or a
   - Write down what callers rely on, not incidental behavior such as invalid inputs.
   - Leave callers on the old code until stage 3 (implementation) replaces it.
   - Run the stage 2 tests against the old code; human accepts each failure as a test fix or a behavior change.
+  - When the old code cannot be imported, such as a function inside a CLI script, compare instead:
+    - Copy its logic into a script outside the repository.
+    - Run the old copy and the new code on the same real inputs, and diff the outputs.
 - Paths follow this template, where core functions live in `src/core/`.
   - In another layout, use the directory that the oxlint core override names.
 - Each rule section ends with a table of what reports a broken rule.
