@@ -12,6 +12,7 @@ import {
   sourceFilePath,
   sourceText,
 } from "./core/extract.ts";
+import { parseDiffLinesByFile } from "./core/hunk.ts";
 import { ACCEPT, appendLog, ESCALATE, judge, ruleHashes } from "./judge.ts";
 import { rules } from "./rules/index.ts";
 
@@ -29,8 +30,6 @@ const SOURCE_PATHSPECS = [
 const UNSURE_NOTE =
   "\nJev was unsure about the findings marked unsure. Read the code at each one and answer its question yourself before changing anything.\n";
 
-const HUNK_HEADER = /^@@ -\S+ \+(?<start>\d+)(?:,(?<count>\d+))? @@/u;
-
 const diffLinesByFile = (
   compareWith: readonly string[]
 ): Map<string, Set<Line>> => {
@@ -47,31 +46,8 @@ const diffLinesByFile = (
     ],
     { encoding: "utf-8" }
   );
-  const changed = new Map<string, Set<Line>>();
-  let lines = new Set<Line>();
 
-  for (const text of diff.split("\n")) {
-    if (text.startsWith("+++ b/")) {
-      lines = new Set();
-      changed.set(text.slice("+++ b/".length), lines);
-      continue;
-    }
-
-    const hunk = HUNK_HEADER.exec(text)?.groups;
-    if (hunk?.["start"] !== undefined) {
-      const start = Number(hunk["start"]);
-      const count = Number(hunk["count"] ?? "1");
-      for (
-        let lineNumber = start;
-        lineNumber < start + count;
-        lineNumber += 1
-      ) {
-        lines.add(sourceLine(lineNumber));
-      }
-    }
-  }
-
-  return changed;
+  return parseDiffLinesByFile(diff);
 };
 
 // `git diff` skips untracked files, where new work sits until it is staged.
