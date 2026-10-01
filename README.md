@@ -17,36 +17,20 @@ open zed://extension/tsgo
 
 ## Local secrets
 
-1Password holds the source values. `fnox.toml` contains their references, and `fnox sync` writes a personal age-encrypted cache to the gitignored `fnox.local.toml`. Daily reads decrypt locally without 1Password prompts.
-
-Create a personal age key once per machine. Reuse an existing key at this path instead of generating another:
-
 ```sh
 mkdir -p ~/.config/fnox
-mise exec -- age-keygen -o ~/.config/fnox/age.txt
-mise exec -- age-keygen -y ~/.config/fnox/age.txt
-```
+[ -f ~/.config/fnox/age.txt ] || mise exec -- age-keygen -o ~/.config/fnox/age.txt
 
-Add the following provider to `~/.config/fnox/config.toml`, preserving any existing settings. Replace `age1...` with the public recipient printed by `age-keygen -y`:
+cat >> ~/.config/fnox/config.toml <<EOF
 
-```toml
 [providers.sync-age]
 type = "age"
-recipients = ["age1..."]
+recipients = ["$(mise exec -- age-keygen -y ~/.config/fnox/age.txt)"]
 key_file = "~/.config/fnox/age.txt"
-```
+EOF
 
-Keep the private key outside the repository. Anyone with the key and the cache can decrypt the cached values.
-
-From each checkout or worktree, authenticate to 1Password and create its cache:
-
-```sh
 just sync-secrets
 ```
-
-`just jev-lint` and Git hooks then use the cache through `fnox exec`. The cache survives restarts, but does not refresh automatically. Run `just sync-secrets` again after a value changes in 1Password.
-
-See the [fnox local cache guide](https://fnox.jdx.dev/guide/golden-path.html).
 
 ## Commands
 
