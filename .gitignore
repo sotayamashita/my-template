@@ -3,6 +3,7 @@ node_modules/
 .env
 .env.*
 !.env.example
+fnox.local.toml
 
 # tools/jev-lint
 tools/jev-lint/log/

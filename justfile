@@ -32,6 +32,10 @@ jscpd *args:
 jev-lint *args:
     mise exec -- fnox exec -- pnpm jev-lint "$@"
 
+# Refresh the personal age cache from 1Password.
+sync-secrets *args:
+    mise exec -- fnox sync --provider sync-age --local-file "$@"
+
 # Check lint rules and formatting.
 check *args:
     mise exec -- pnpm check "$@"
