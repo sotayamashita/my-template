@@ -2,46 +2,12 @@
 
 TypeScript project template.
 
-## Setup
+## Apply to an existing repository
 
-```sh
-mise install
-just setup
-```
+Give a coding agent this prompt in the target repository:
 
-Zed needs the [tsgo extension](https://zed.dev/extensions/tsgo) for TS 7:
-
-```sh
-open zed://extension/tsgo
-```
-
-## Local secrets
-
-```sh
-mkdir -p ~/.config/fnox
-[ -f ~/.config/fnox/age.txt ] || mise exec -- age-keygen -o ~/.config/fnox/age.txt
-
-cat >> ~/.config/fnox/config.toml <<EOF
-
-[providers.sync-age]
-type = "age"
-recipients = ["$(mise exec -- age-keygen -y ~/.config/fnox/age.txt)"]
-key_file = "~/.config/fnox/age.txt"
-EOF
-
-just sync-secrets
-```
-
-## Commands
-
-```sh
-just              # List commands
-just check        # Check lint rules and formatting
-just fix          # Fix lint violations and formatting
-just typecheck    # Check TypeScript types
-just test         # Run tests
-just mutation     # Find code the tests do not pin down
-just sync-secrets # Refresh the local secrets cache
+```text
+Follow https://raw.githubusercontent.com/sotayamashita/my-template/main/docs/prompts/apply.md
 ```
 
 ## Opinionated stack
@@ -68,10 +34,19 @@ just sync-secrets # Refresh the local secrets cache
 
 [tsconfig-bases]: https://github.com/tsconfig/bases
 
-## Apply to an existing repository
+## Local secrets
 
-Give a coding agent this prompt in the target repository:
+```sh
+mkdir -p ~/.config/fnox
+[ -f ~/.config/fnox/age.txt ] || mise exec -- age-keygen -o ~/.config/fnox/age.txt
 
-```text
-Follow https://raw.githubusercontent.com/sotayamashita/my-template/main/docs/prompts/apply.md
+cat >> ~/.config/fnox/config.toml <<EOF
+
+[providers.sync-age]
+type = "age"
+recipients = ["$(mise exec -- age-keygen -y ~/.config/fnox/age.txt)"]
+key_file = "~/.config/fnox/age.txt"
+EOF
+
+just sync-secrets
 ```
