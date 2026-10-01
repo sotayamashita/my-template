@@ -22,6 +22,14 @@ describe("parseDiffLinesByFile", () => {
     ).toEqual(new Map([["a.ts", new Set([7])]]));
   });
 
+  test("ignores hunk header text inside a changed line", () => {
+    expect(
+      parseDiffLinesByFile(
+        '+++ b/a.ts\n@@ -0,0 +1 @@\n+const header = "@@ -1 +9,3 @@";\n'
+      )
+    ).toEqual(new Map([["a.ts", new Set([1])]]));
+  });
+
   test("adds no lines for a count of zero", () => {
     const changed = parseDiffLinesByFile(
       "+++ b/a.ts\n@@ -1,2 +0,0 @@\n-old\n-text\n"

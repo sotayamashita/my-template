@@ -10,6 +10,8 @@ const HUNK_HEADER = /^@@ -\S+ \+(?<start>\d+)(?:,(?<count>\d+))? @@/u;
  * For a hunk with new-side start s and count c, include one-based lines
  * s through s+c-1, inclusive. An omitted count means 1; count 0 adds none.
  * Merge hunks of one file into one Set of line numbers.
+ * Only a line that starts with `@@` is a hunk header; text like `@@ -1 +2 @@`
+ * inside an added or removed line adds nothing.
  *
  * @example
  * parseDiffLinesByFile("+++ b/a.ts\n@@ -2 +4,2 @@\n+x\n+y\n")
