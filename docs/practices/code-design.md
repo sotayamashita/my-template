@@ -1,6 +1,15 @@
-# Code Design
+# wip - Code Design
 
-Design code so that a reader can trust a function from its signature and skip its body.
+Rules for TypeScript functions in this repository. They let a reader, human or agent, trust a function from its signature and tests and skip its body.
+
+- Follow the order of work when you add a function or change its contract.
+- For a bug fix that keeps every contract, skip stage 1 (contract) and stage 2 (tests):
+  - Add one test, written from the contract, that fails because of the bug.
+  - Then fix the body.
+- Paths follow this template, where core functions live in `src/core/`.
+  - In another layout, use the directory that the oxlint core override names.
+- Each rule section ends with a table of what reports a broken rule.
+  - `Review` means no tool does; check it yourself before handing over.
 
 <!-- prettier-ignore -->
 ```ts
@@ -12,16 +21,114 @@ const bmi = (height: HeightMeter, weight: WeightKg): number =>
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^ body
 ```
 
-- Signature: a function's name, parameter names and types, and return type
-- Contract: the conditions a caller meets and the result the function promises
+| Term | Meaning |
+| --- | --- |
+| Contract | The conditions a caller meets and the result the function promises: types, signatures, and JSDoc |
+| Branded type | A primitive with a type-only tag, such as `number & { readonly __brand: "Quantity" }` |
+| Smart constructor | The only function that creates a branded value; it checks the condition first |
+| Core | Pure functions in the core directory, `src/core/` in this template |
+| Shell | Code outside the core directory that reads, calls core functions, and writes |
 
-Each section ends with a table of how its rules are checked. Verified: tried in this template, or in a scratch project for tools this template lacks. Unverified: expected, not yet tried. Candidate: a jev-lint candidate rule.
+## Order of work
+
+```mermaid
+sequenceDiagram
+    participant H as Human
+    participant A as Agent
+    participant M as Checks
+    A->>H: Stage 1: contract
+    H-->>A: Approve
+    A->>H: Stage 2: tests from the contract
+    H-->>A: Approve; agent saves the baseline
+    A->>M: Stage 3: implementation
+    M-->>H: Results
+    H->>M: Review and commit
+```
+
+Tests for a whole contract come first, in one batch, before any body. This is not test-driven development, which alternates one test and one change.
+
+Stages 1 and 2 end in human approval, not a commit. The pre-commit hook runs the related tests, and stage 2 leaves them failing on purpose.
+
+### Stage 1: contract
+
+- Write branded types, their JSDoc, and their smart constructors in full.
+  - Why: the constructor's checks are the invariants.
+- Declare every other exported function without a body.
+  - Why: `noUnusedParameters` rejects a stub body that ignores its parameters.
+- Write functions that only connect other functions in full.
+  - Why: tsc then reports where one result misses the next precondition.
+- State each function's input-output relation in its JSDoc.
+  - Include formulas, rounding, bound behavior, and expected failures.
+  - Why: stage 2 writes tests from this text alone.
+- Stop and ask the human when a required behavior is unspecified.
+- Done when `just typecheck` passes.
+- Stop for human review; continue only after approval. Do not commit.
+
+```ts
+/**
+ * Body mass index: weight in kilograms divided by the square of height in
+ * meters, without rounding.
+ */
+export declare const bmi: (height: HeightMeter, weight: WeightKg) => number;
+```
+
+### Stage 2: tests
+
+- Write tests from the contract alone; the bodies do not exist yet.
+- Write expected values as literals worked out apart from the code.
+  - Example: `toBeCloseTo(22.86, 2)`, not `toBe(70 / (1.75 * 1.75))`.
+- Done when `just typecheck` passes and `just test` fails only on declared functions.
+  - Vitest reports `TypeError: bmi is not a function` in each test that calls one.
+- Stop for human review; continue only after approval. Do not commit.
+- After approval, save the baseline that stage 3 (implementation) compares against:
+  - Record the tree ID that `GIT_INDEX_FILE="$(mktemp -u)" sh -c 'git add -A && git write-tree'` prints.
+  - Run `pnpm exec tsc --declaration --emitDeclarationOnly --noEmit false --outDir <dir>`, with `<dir>` outside the repository.
+  - Why: the tree ID covers untracked test files, and neither step touches the index.
+
+### Stage 3: implementation
+
+- Replace each `declare` with an implementation until `just test` passes.
+- Keep the tests and the contract as they are.
+- Stop and report when a test or the contract looks wrong.
+  - After the human fixes it in stage 1 (contract) or stage 2 (tests), save a new baseline.
+- Done when every check passes:
+  - `just test`, `just typecheck`, and `just check`
+  - `git diff --name-status <stage 2 tree> <current tree> -- '*.test.ts'` prints nothing
+    - Get `<current tree>` with the same `git write-tree` command as in stage 2.
+  - The contract emitted again to a new directory matches the stage 2 copy, with `diff -r`
+  - `just jev-lint` findings are fixed or answered
+  - `just mutation` runs; report surviving mutants in changed code instead of adding tests
+- Stop for human review. Commit after approval, with every hook.
+
+| Rule | Check |
+| --- | --- |
+| Declare functions in stage 1 (contract) | tsc: TS6133 on a stub body that ignores its parameters |
+| Contracts connect | tsc: TS2345 in a function that connects others |
+| Tests fail only for missing bodies | Vitest: `TypeError: <name> is not a function` |
+| Stage 3 (implementation) keeps the tests | `git diff --name-status` between the stage 2 tree and the current tree; it shows added, changed, and removed test files |
+| Stage 3 (implementation) keeps the contract | `.d.ts` diff: a return type changed to `number` shows |
+| The implementation meets the contract | Vitest: `just test`; pre-commit runs `vitest related` on staged files |
+| The JSDoc states each relation | Review: stage 2 (tests) cannot start without it |
+
+### Human review
+
+| Part | Human reviews | Why |
+| --- | --- | --- |
+| Contract: types, signatures, JSDoc | Yes, after stage 1 (contract) | No tool can tell whether a range or relation matches the domain |
+| Smart constructor checks | Yes, after stage 1 (contract) | The checks are the invariants |
+| Test names, bounds, expected values | Yes, after stage 2 (tests) | A wrong expected value passes every tool |
+| Shell function bodies | Yes, after stage 3 (implementation) | Types do not show what a function reads or writes |
+| Check results | Yes, after stage 3 (implementation) | Human decides what to do with a finding |
+| Core function bodies | No | Tests check the relations, and tsc checks the types |
+| Whether stage 3 (implementation) changed tests or the contract | No | The tree diff and `.d.ts` diff show it |
+| Style and known mistakes | No | oxlint and jev-lint report them |
 
 ## Preconditions
 
 - Give a parameter a domain type when its value has a condition.
 - Check the condition once, where the value is created.
-- Do not recheck a domain-typed parameter inside the function.
+- Trust a domain-typed parameter; do not recheck it inside the function.
+  - Why: the reader learns the conditions from the signature, not the body.
 
 ```ts
 /** Height in meters, greater than 0 and at most 3. */
@@ -37,14 +144,12 @@ const bmi = (height: HeightMeter, weight: WeightKg): number =>
 bmi(weight, height); // Type error: a WeightKg is not a HeightMeter.
 ```
 
-- Why: the reader learns the conditions from the signature, not the body.
-
-| Rule | Checked by | Status |
-| --- | --- | --- |
-| Parameters that share a primitive type are not mixed up | tsc: TS2345 on `bmi(weight, height)` | Verified |
-| Give lookalike parameters domain types | jev-lint (existing): `unbranded-lookalike-params` | In jev-lint |
-| Check once; do not recheck a domain-typed parameter | jev-lint (existing): `redundant-internal-validation` | In jev-lint |
-| Give a parameter a domain type when its value has a condition | Human: the domain decides which conditions matter | — |
+| Rule | Check |
+| --- | --- |
+| Parameters that share a primitive are not mixed up | tsc: TS2345 on `bmi(weight, height)` |
+| Give lookalike parameters domain types | jev-lint: `unbranded-lookalike-params` |
+| Do not recheck a domain-typed parameter | jev-lint: `redundant-internal-validation` |
+| Give a domain type to a parameter with a condition | Review: the domain decides which conditions matter |
 
 ## Invariants
 
@@ -59,9 +164,10 @@ Quantity + Quantity ──▶ number ──▶ quantity() ──▶ Quantity
 
 - Create a branded value only in its smart constructor.
 - Pass the result of an operation on branded values through the constructor again.
+  - Why: `15 + 10` is a plain `number`, and only the constructor can reject 25.
 - Mark every field of an object type `readonly`.
 - Throw from the constructor when code inside the program passes a bad value.
-- Parse external input once at the boundary and return failure as a value.
+- Parse external input once at the boundary, and return failure as a value.
 
 ```ts
 /** Order quantity, an integer from 1 to 20. */
@@ -79,142 +185,16 @@ const quantity = (value: number): Quantity => {
 const add = (a: Quantity, b: Quantity): Quantity => quantity(a + b);
 ```
 
-- Why: oxlint rejects `as Quantity` outside the constructor, so every `Quantity` passed the check.
-- Why: `15 + 10` is a plain `number`, and only the constructor can reject 25.
-
-| Rule | Checked by | Status |
-| --- | --- | --- |
-| Create a branded value only in its smart constructor | oxlint: `typescript/no-unsafe-type-assertion` on `as Quantity` | Verified |
-| State the checked invariant at the assertion | oxlint: `anti-slop/require-safety-comment-for-type-assertion` | Verified |
-| Pass the result of an operation through the constructor | tsc: TS2322 on `(a, b): Quantity => a + b` | Verified |
-| Do not write to a `readonly` field | tsc: TS2540 | Verified |
-| Mark every field `readonly` | Human: the current oxlint config does not report a mutable field | — |
-| The constructor's suppression is allowed | jev-lint (existing): `suppression-hides-correctness` marks it unsure at about 0.89, so the agent judges it; jev-lint's eval keeps this case | Verified |
-| Throw for bugs; parse external input at the boundary | Human: the code path decides whether input is external | — |
-
-## Postconditions
-
-```ts
-const total = (a: Quantity, b: Quantity): Quantity => quantity(a + b);
-//                                        ^^^^^^^^ promises 1 to 20, not that it can throw
-const findUser = (id: UserId): User | undefined => users.get(id);
-//                             ^^^^^^^^^^^^^^^^ promises that a user can be missing
-```
-
-- Promise the kind and range of a result in the return type.
-- Return an expected failure as a value, such as `User | undefined`.
-- Throw only for a bug inside the program.
-  - Why: a signature does not show that a function throws.
-- Do not change arguments or state outside the function.
-
-| Rule | Checked by | Status |
-| --- | --- | --- |
-| Promise the kind and range of a result in the return type | tsc: TS2345 on `order(total(a, b))` when `total` returns `number` | Verified |
-| Handle an expected failure | tsc: TS2345 on `greet(findUser(id))` with `User \| undefined` | Verified |
-| Do not change arguments | oxlint: `no-param-reassign` with `props: true` reports `stay.price += 1`; this template enables it | Verified |
-| Do not change state outside the function | jev-lint (candidate): `query-name-with-side-effects`, `shared-mutable-module-state` | Candidate |
-| Throw only for a bug inside the program | Human: the domain decides whether a failure is expected | — |
-
-## Where the contract lives
-
-| Promise | Place |
+| Rule | Check |
 | --- | --- |
-| Unit and range | The type name and the type's JSDoc |
-| A relation that a short expression shows | The function body |
-| A relation that the body does not show | Tests: examples and properties |
-| Meaning, reasons, outside constraints | JSDoc |
+| Create a branded value only in its smart constructor | oxlint: `typescript/no-unsafe-type-assertion` on `as Quantity` |
+| State the checked invariant at the assertion | oxlint: `anti-slop/require-safety-comment-for-type-assertion` |
+| Pass an operation's result through the constructor | tsc: TS2322 on `(a, b): Quantity => a + b` |
+| Do not write to a `readonly` field | tsc: TS2540 |
+| Mark every field `readonly` | Review: no rule reports a mutable field |
+| Throw for bugs; parse external input at the boundary | Review: the code path decides whether input is external |
 
-- Do not restate the body in JSDoc.
-  - Why: prose drifts from code, and people and agents read it differently.
-- Write an example as a concrete input and output.
-- Write a relation that holds for every input as a property test.
-
-| Rule | Checked by | Status |
-| --- | --- | --- |
-| Do not restate the body in JSDoc | jev-lint (existing): `comment-narrates-code` | In jev-lint |
-| JSDoc matches the code | jev-lint (candidate): `comment-contradicts-code` | Candidate |
-| Examples are concrete; relations are property tests | Human: in stage 2 | — |
-
-## Linking code to tests
-
-```text
-src/core/
-├── bmi.ts        export const bmi = ...
-└── bmi.test.ts   import { bmi } from "./bmi.ts"
-                  describe("bmi", ...)
-```
-
-- Put `x.test.ts` next to `x.ts`.
-- Import the function under test, and name the `describe` block after it.
-- Do not link tests from JSDoc, such as with `@see`.
-  - Why: nothing checks the link, so it goes stale.
-
-| Rule | Checked by | Status |
-| --- | --- | --- |
-| Put `x.test.ts` next to `x.ts` | Human: no rule checks file placement yet | — |
-| The tests for a file can be found from it | Vitest: `vitest related src/core/bmi.ts --run` runs only the tests that import it, directly or through other files | Verified |
-| Import the function and name the `describe` block after it | Human: no rule checks it yet | — |
-| Do not link tests from JSDoc | Human: no rule checks it yet | — |
-
-## Tests from the contract
-
-```mermaid
-flowchart LR
-    P[Human] -->|reviews| C[Contract]
-    C -->|written apart| T[Tests]
-    C -->|written apart| I[Implementation]
-    T -->|run against| I
-```
-
-- Have human review the contract: types, signatures, and JSDoc.
-- Write tests from the contract, without reading the implementation.
-- Write the implementation from the contract, without changing the tests.
-  - Why: human catches a wrong contract; tests and code written apart catch a wrong implementation.
-  - Why: tests written from the implementation copy its bugs.
-  - Example: the code rejects 20 with `value >= 20`, and a test read from it expects 20 to throw.
-  - jev-lint's `test-self-referential` flags one form: an expected value computed by the code under test.
-  - No tool flags the example above; only writing tests from the contract prevents it.
-
-```text
-   0      1 ──────────── 20      21
-   ✗      ✓              ✓       ✗
-outside  inside        inside  outside
-```
-
-- Test each range just inside and just outside its bounds.
-- Test ranges only in the smart constructor.
-  - Why: functions that take the branded type cannot receive an out-of-range value.
-- Test an operation on branded values at the bounds of its result.
-
-| Rule | Checked by | Status |
-| --- | --- | --- |
-| Tests come from the contract, not the implementation | Stage 1 declares functions, so there is no body to read | Verified: `declare` passes tsc and oxlint |
-| Do not compute expected values with the code under test | jev-lint (existing): `test-self-referential` | In jev-lint |
-| Tests cover each bound | Stryker with the Vitest runner: `value < 1` → `value <= 1` survives tests without bounds; boundary tests kill it; Stryker counts only example tests, because a property test's name changes with its seed | Verified |
-| Tests do not copy a wrong bound from the code | Human: the copied test looks correct | — |
-| Test ranges only in the smart constructor | Human: no rule checks it | — |
-
-```ts
-describe("quantity", () => {
-  test.each([1, 20])("accepts %d", (value) => {
-    expect(quantity(value)).toBe(value);
-  });
-
-  test.each([0, 21, 1.5])("rejects %d", (value) => {
-    expect(() => quantity(value)).toThrow(RangeError);
-  });
-});
-
-describe("add", () => {
-  test("accepts a sum of 20", () => {
-    expect(add(quantity(10), quantity(10))).toBe(20);
-  });
-
-  test("rejects a sum of 21", () => {
-    expect(() => add(quantity(10), quantity(11))).toThrow(RangeError);
-  });
-});
-```
+If jev-lint's `suppression-hides-correctness` flags the constructor's suppression, answer yes only when no check above it enforces the invariant.
 
 ## How far to type a value
 
@@ -231,64 +211,57 @@ describe("add", () => {
 - Move to level 4 only when two units occur in the code.
 - Keep a return type as `number` until another function takes it as input.
 
-| Rule | Checked by | Status |
-| --- | --- | --- |
-| Every rule in this section | Human: where the value travels decides the level | — |
+| Rule | Check |
+| --- | --- |
+| Every rule in this section | Review: where the value travels decides the level |
 
-## Order of work
-
-```mermaid
-sequenceDiagram
-    participant P as Human
-    participant A as Agent
-    participant M as Checks
-    A->>P: 1. Contract
-    P->>M: Review and commit
-    A->>P: 2. Tests from the contract
-    P->>M: Review and commit
-    A->>M: 3. Implementation
-    M-->>P: Results
-```
-
-### 1. Contract
-
-- Write branded types and their JSDoc.
-- Write smart constructors in full.
-  - Why: their checks are the invariants.
-- Declare every other exported function without a body.
-  - Why: `noUnusedParameters` rejects a stub body that ignores its parameters.
-- Write functions that only connect other functions in full.
-  - Why: tsc then reports where one result does not meet the next precondition.
+## Postconditions
 
 ```ts
-/** Body mass index. */
-export declare const bmi: (height: HeightMeter, weight: WeightKg) => number;
+const total = (a: Quantity, b: Quantity): Quantity => quantity(a + b);
+//                                        ^^^^^^^^ promises 1 to 20, not that it can throw
+const findUser = (id: UserId): User | undefined => users.get(id);
+//                             ^^^^^^^^^^^^^^^^ promises that a user can be missing
 ```
 
-### 2. Tests
+- Promise the kind and range of a result in the return type.
+- Return an expected failure as a value, such as `User | undefined`.
+- Throw only for a bug inside the program.
+  - Why: a signature does not show that a function throws.
+- Leave arguments unchanged in every function.
+- In core functions, return new values without changing outside state.
+- In shell functions, state the reads, writes, and expected failures in the JSDoc.
 
-- Write tests from the contract alone.
-- Write expected values as literals worked out apart from the code.
-  - Example: `toBeCloseTo(22.86, 2)`, not `toBe(70 / (1.75 * 1.75))`.
-- Confirm that tsc passes, so the tests match the contract.
-- Confirm that the tests fail only because a declared export is missing.
-  - Vitest reports `TypeError: bmi is not a function` in each test that calls it.
+| Rule | Check |
+| --- | --- |
+| Promise the kind and range in the return type | tsc: TS2345 on `order(total(a, b))` when `total` returns `number` |
+| Handle an expected failure | tsc: TS2345 on `greet(findUser(id))` with `User \| undefined` |
+| Do not change arguments | oxlint: `no-param-reassign` with `props: true` |
+| No outside state changes in core functions | Review; jev-lint candidates: `query-name-with-side-effects`, `shared-mutable-module-state` |
+| Shell JSDoc states reads, writes, and failures | Review in stage 1 (contract) |
+| Throw only for a bug inside the program | Review: the domain decides whether a failure is expected |
 
-### 3. Implementation
+## Where the contract lives
 
-- Replace each `declare` with an implementation until the tests pass.
-- Do not change the tests or the contract.
-- Stop and report when a test or the contract looks wrong.
-  - Human fixes it in stage 1 or 2, reviews it again, and commits it.
+| Promise | Place |
+| --- | --- |
+| Unit and range | The type name and the type's JSDoc |
+| Input-output relation: formula, rounding, bounds, failures | JSDoc, written in stage 1 (contract) |
+| Meaning, reasons, outside constraints | JSDoc |
+| Checks that the relation holds | Tests: examples and properties |
+| Steps that compute the relation | The function body |
 
-| Rule | Checked by | Status |
-| --- | --- | --- |
-| Declare functions in stage 1 | tsc: TS6133 from `noUnusedParameters` on a stub body | Verified |
-| Contracts connect in stage 1 | tsc: TS2345 on functions that connect others | Verified |
-| Tests fail only because an export is missing | Vitest: `TypeError: bmi is not a function` in each test; Node: `does not provide an export named 'bmi'` | Verified |
-| Stage 3 keeps the contract | `tsc --declaration --emitDeclarationOnly --noEmit false --rootDir src --outDir <dir>`, then diff the `.d.ts` files | Verified: a `declare` and its implementation emit the same `.d.ts`; a return type changed to `number` shows |
-| Stage 3 keeps the tests | `git diff <stage 2 commit> -- '*.test.ts'` is empty; it also lists test files added later | Verified |
-| The implementation meets the contract | Vitest: `vitest run` passes; the pre-commit hook runs `vitest related` on staged files | Verified |
+- State the required relation in JSDoc, even when a short expression computes it.
+- Leave implementation steps and local variables out of JSDoc.
+  - Why: the relation is what tests check; steps drift from the body as it changes.
+- Write an example as a concrete input and output.
+- Write a relation that holds for every input as a property test.
+
+| Rule | Check |
+| --- | --- |
+| Leave implementation steps out of JSDoc | jev-lint: `comment-narrates-code` |
+| JSDoc matches the code | Review; jev-lint candidate: `comment-contradicts-code` |
+| Examples are concrete; relations are property tests | Review in stage 2 (tests) |
 
 ## Side effects
 
@@ -312,21 +285,28 @@ core: pure functions in src/core/
 
 ```ts
 // src/core/charge.ts
+/** 15% of the price, rounded down to the yen. */
 export const serviceCharge = (price: Yen): Yen => yen(Math.floor(price * 0.15));
+/** 10% of the price plus the service charge, rounded down to the yen. */
 export const consumptionTax = (price: Yen, charge: Yen): Yen =>
   yen(Math.floor((price + charge) * 0.1));
 
 // src/shell/settle.ts
+/**
+ * Reads the stay, then saves it with the service charge and tax added to its
+ * price. Rejects when the stay is missing or the save fails.
+ */
 export const settle = async (db: Db, id: StayId): Promise<void> => {
   const stay = await db.findStay(id);
   const charge = serviceCharge(stay.price);
   const tax = consumptionTax(stay.price, charge);
-  await db.saveStay({ ...stay, price: yen(stay.price + tax) });
+  await db.saveStay({ ...stay, price: yen(stay.price + charge + tax) });
 };
 ```
 
+`oxlint.config.ts` applies these rules to `src/core/**` only:
+
 ```ts
-// oxlint.config.ts
 overrides: [
   {
     files: ["src/core/**"],
@@ -349,24 +329,23 @@ overrides: [
 ],
 ```
 
-| Rule | Checked by | Status |
-| --- | --- | --- |
-| Core rules apply only under `src/core/` | oxlint: `overrides` with `files: ["src/core/**"]`; a shell file is not reported | Verified |
-| No Node I/O in core | oxlint: `no-restricted-imports` on `node:fs` | Verified |
-| No network in core | oxlint: `no-restricted-globals` on `fetch` | Verified |
-| No clock in core | oxlint: `no-restricted-globals` on `Date.now()` and `new Date()`; `Date` as a type passes | Verified |
-| No randomness in core | oxlint: `no-restricted-properties` on `Math.random()` | Verified |
-| No I/O libraries in core | oxlint: add their package names to `no-restricted-imports`, such as `pg` | Verified |
-| No module state changes in core | jev-lint (candidate): `shared-mutable-module-state`; oxlint reports nothing for `count += 1` | Candidate |
-| No hidden clock or randomness elsewhere | jev-lint (candidate): `hard-wired-nondeterminism` | Candidate |
-| A shell function only reads, calls, and writes | Human: reads shell bodies | — |
+| Rule | Check |
+| --- | --- |
+| No Node I/O in core | oxlint: `no-restricted-imports` on `node:*` |
+| No network in core | oxlint: `no-restricted-globals` on `fetch` |
+| No clock in core | oxlint: `no-restricted-globals` on `Date.now()` and `new Date()`; `Date` as a type passes |
+| No randomness in core | oxlint: `no-restricted-properties` on `Math.random()` |
+| No I/O libraries in core | oxlint: add the package name, such as `pg`, to `no-restricted-imports` |
+| No module state changes in core | Review: oxlint reports nothing for `count += 1`; jev-lint candidate: `shared-mutable-module-state` |
+| No hidden clock or randomness outside core | Review; jev-lint candidate: `hard-wired-nondeterminism` |
+| A shell function only reads, calls, and writes | Review: human reads shell bodies |
 
 ## Abstraction
 
 ```text
-total = dataCharge(usage) + callCharge(duration) + smsCharge(count)
-        └── each name stands for a calculation the reader trusts
-            without reading it: a contract, tests, and no side effects
+total = yen(dataCharge(usage) + callCharge(duration) + smsCharge(count))
+            └── each name stands for a calculation the reader trusts
+                without reading it: a contract, tests, and no side effects
 ```
 
 - Give a calculation with its own rule a named function and a contract.
@@ -377,43 +356,93 @@ total = dataCharge(usage) + callCharge(duration) + smsCharge(count)
 - Do not extract a function that only forwards its arguments to one call.
 
 ```ts
+/** 10 yen a minute for the first 5 minutes, then 22 yen a minute. */
 export const callCharge = (duration: Minutes): Yen =>
   yen(duration <= 5 ? duration * 10 : 50 + (duration - 5) * 22);
 
-const total = dataCharge(usage) + callCharge(duration) + smsCharge(count);
+const total: Yen = yen(
+  dataCharge(usage) + callCharge(duration) + smsCharge(count)
+);
 ```
 
-| Rule | Checked by | Status |
-| --- | --- | --- |
-| Do not extract a function that only forwards its arguments | jev-lint (existing): `pass-through-wrapper` | In jev-lint |
-| Do not add an abstraction with one use and no present need | jev-lint (candidate): `speculative-abstraction` | Candidate |
-| An extracted function adds clarity, not indirection | jev-lint (candidate): `load-transfer-extraction` | Candidate |
-| A function does not mix calculations that change for different reasons | jev-lint (candidate): `multiple-responsibilities` | Candidate |
-| A function does not mix calculations | oxlint: `complexity/complexity` does not report the mixed phone bill calculation | Verified: not reported |
-| A calculation is worth a contract and tests | Human: the domain decides which rules stand alone | — |
+| Rule | Check |
+| --- | --- |
+| Do not extract a function that only forwards its arguments | jev-lint: `pass-through-wrapper` |
+| A calculation is worth a contract and tests | Review: the domain decides which rules stand alone |
+| Do not abstract for one use and no present need | Review; jev-lint candidate: `speculative-abstraction` |
+| An extracted function adds clarity, not indirection | Review; jev-lint candidate: `load-transfer-extraction` |
+| A function does not mix calculations | Review: `complexity/complexity` misses it; jev-lint candidate: `multiple-responsibilities` |
 
-## What human reviews
+## Tests
 
-| Part | Review | Why |
-| --- | --- | --- |
-| Contract: types, signatures, JSDoc | Yes, in stage 1 | No tool can tell whether a range or a relation matches the domain |
-| Smart constructor checks | Yes, in stage 1 | The checks are the invariants |
-| Test names, boundaries, expected values | Yes, in stage 2 | A wrong expected value passes every tool |
-| Core function bodies | No | Tests check the relations, and tsc checks the types |
-| Shell function bodies | Yes, after stage 3 | Types do not show what a function reads or writes |
-| Whether stage 3 changed tests | No | `git diff` against the stage 2 commit shows it |
-| Whether stage 3 changed the contract | No | A `.d.ts` diff against the stage 2 commit shows it |
-| Style and known mistakes | No | oxlint and jev-lint report them |
-| Results of the checks | Yes, after stage 3 | Human decides what to do with a finding |
+```mermaid
+flowchart LR
+    H[Human] -->|reviews| C[Contract]
+    C -->|written apart| T[Tests]
+    C -->|written apart| I[Implementation]
+    T -->|run against| I
+```
 
-## References
+- Write tests from the contract, without reading the implementation.
+  - Why: tests read from code copy its bugs, such as a `value >= 20` that rejects 20.
+  - No tool catches a copied bound; only writing tests from the contract prevents it.
+- Put `x.test.ts` next to `x.ts`, import the function, and name `describe` after it.
+  - Why: a reader finds the tests beside the code, and `vitest related` finds them by import.
+- Link tests through imports only, not through `@see` in JSDoc.
 
-- [設計次第でAIコードの読む量は減らせる / designing-for-code-reading](https://speakerdeck.com/minodriven/designing-for-code-reading)
+```text
+   0      1 ──────────── 20      21
+   ✗      ✓              ✓       ✗
+outside  inside        inside  outside
+```
+
+- Test each range just inside and just outside its bounds.
+- Test ranges only in the smart constructor.
+  - Why: functions that take the branded type cannot receive an out-of-range value.
+- Test an operation on branded values at the bounds of its result.
+
+```ts
+describe("quantity", () => {
+  test.each([1, 20])("accepts %d", (value) => {
+    expect(quantity(value)).toBe(value);
+  });
+
+  test.each([0, 21, 1.5])("rejects %d", (value) => {
+    expect(() => quantity(value)).toThrow(RangeError);
+  });
+});
+
+describe("add", () => {
+  test("accepts a sum of 20", () => {
+    expect(add(quantity(10), quantity(10))).toBe(20);
+  });
+
+  test("rejects a sum of 21", () => {
+    expect(() => add(quantity(10), quantity(11))).toThrow(RangeError);
+  });
+});
+```
+
+| Rule | Check |
+| --- | --- |
+| Do not compute expected values with the code under test | jev-lint: `test-self-referential` |
+| Tests cover each bound | Stryker: `just mutation` reports `value < 1` → `value <= 1` as survived |
+| Tests do not copy a wrong bound from the code | Review: the copied test looks correct |
+| Test ranges only in the smart constructor | Review |
+| `x.test.ts` sits next to `x.ts` and links by import | Review |
+
+Stryker counts example tests only. A property test's name carries its seed, so a mutant that only property tests cover shows as survived.
 
 ## Ideas
+
+Not instructions; candidates for later.
 
 - A contract index: list every signature, branded type, and JSDoc in one view.
   - Human could review contracts there without opening each file.
   - The `.d.ts` that tsc emits may already be this index.
-- A lock for stage 3: stop an agent from loosening the tests or the contract.
-  - It could reject edits to `*.test.ts` and any change to the `.d.ts` until stage 3 ends.
+- A lock for stage 3 (implementation): stop an agent from loosening the tests or the contract.
+  - It could reject edits to `*.test.ts` and any change to the `.d.ts` until stage 3 (implementation) ends.
+
+## References
+
+- [設計次第でAIコードの読む量は減らせる / designing-for-code-reading](https://speakerdeck.com/minodriven/designing-for-code-reading)
