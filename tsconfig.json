@@ -5,7 +5,8 @@
     "@tsconfig/node-ts/tsconfig.json"
   ],
   "compilerOptions": {
+    "allowJs": true,
     "noEmit": true
   },
-  "include": ["src", "tools", "*.ts"]
+  "include": ["src", "tools", "*.ts", "*.mjs"]
 }

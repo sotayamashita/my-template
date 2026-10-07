@@ -1,3 +1,6 @@
+// @ts-check
+
+/** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */
 export default {
   // pnpm keeps the runner out of reach of Stryker's default plugin lookup.
   plugins: ["@stryker-mutator/vitest-runner"],

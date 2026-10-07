@@ -178,6 +178,9 @@ importers:
       '@fast-check/vitest':
         specifier: 0.5.0
         version: 0.5.0(vitest@4.1.11(@types/node@24.13.6)(vite@8.3.0(@types/node@24.13.6)(jiti@2.7.0)(yaml@2.9.1)))
+      '@stryker-mutator/api':
+        specifier: 10.0.0
+        version: 10.0.0
       '@stryker-mutator/core':
         specifier: 10.0.0
         version: 10.0.0(@types/node@24.13.6)
