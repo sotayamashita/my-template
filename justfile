@@ -12,7 +12,7 @@ setup:
 # Install hk Git hooks.
 install-hooks:
     # https://hk.jdx.dev/getting_started.html
-    mise exec -- hk install --mise
+    mise exec -- env HK_MISE=0 hk install
 
 # Install dependencies.
 install-deps:

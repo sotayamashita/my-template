@@ -1,5 +1,10 @@
 #:schema https://mise.jdx.dev/schema/mise.json
 
+[env]
+# hk: gives steps their directory's mise env.
+# Install hooks via `just install-hooks`.
+HK_MISE = "1"
+
 [tools]
 age = "1.3.2"
 fnox = "1.35.3"
