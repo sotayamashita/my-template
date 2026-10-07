@@ -40,9 +40,11 @@ export default defineConfig({
     },
   ],
   rules: {
-    // Ultracite core enables oxlint's complexity rule; oxlint-plugin-complexity
-    // also reports cyclomatic complexity, with a breakdown agents can act on.
+    // Turn off oxlint's built-in complexity rule, which Ultracite core enables,
+    // so cyclomatic complexity is reported only once.
     complexity: "off",
+    // Enable oxlint-plugin-complexity's rule instead; its report breaks the
+    // complexity down so agents can act on it.
     "complexity/complexity": "error",
     // A changed argument is a result that the signature does not show.
     "no-param-reassign": ["error", { props: true }],
