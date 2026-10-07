@@ -3,10 +3,15 @@ node_modules/
 .env
 .env.*
 !.env.example
-fnox.local.toml
+
+
+
 
 # tools/jev-lint
 tools/jev-lint/log/
 
 # See https://stryker-mutator.io/
 .stryker-tmp/
+
+# See https://fnox.jdx.dev/reference/configuration.html
+fnox.local.toml
